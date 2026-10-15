@@ -13,7 +13,6 @@ app.get('/', (req, res) => {
         docs: '/api/v1',
     });
 });
-// test
 
 // Health check endpoint
 
