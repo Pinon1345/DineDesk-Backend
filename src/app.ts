@@ -6,6 +6,8 @@ import morgan from 'morgan';
 import helmet from 'helmet';
 import authRoutes from './routes/auth.routes.js';
 import restaurantRoutes from './routes/restaurant.routes.js';
+import menuRoutes from './routes/menu.routes.js';
+import cartRoutes from './routes/cart.routes.js';
 const app = express();
 
 
@@ -20,11 +22,31 @@ app.use(morgan('dev'));
 app.use(express.json());
 app.use(cookieParser());
 
+
+
+
 // Mount Routes
+
+
+// First Routes for Authentication, then for Restaurants, and finally for Menu Items
 
 app.use('/api/v1/auth', authRoutes);
 
+// Secondly, mount the restaurant routes after the authentication routes
+
 app.use('/api/v1/restaurants', restaurantRoutes);
+
+// Thirdly, mount the menu routes after the restaurant routes
+
+app.use('/api/v1/menu', menuRoutes);
+
+// Fourthly, mount the cart routes after the menu routes
+
+app.use('/api/v1/cart', cartRoutes);
+
+
+
+
 
 // Root & Health Check
 
