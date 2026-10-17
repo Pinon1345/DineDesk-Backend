@@ -8,6 +8,7 @@ import authRoutes from './routes/auth.routes.js';
 import restaurantRoutes from './routes/restaurant.routes.js';
 import menuRoutes from './routes/menu.routes.js';
 import cartRoutes from './routes/cart.routes.js';
+import orderRoutes from './routes/order.routes.js';
 const app = express();
 
 
@@ -28,7 +29,7 @@ app.use(cookieParser());
 // Mount Routes
 
 
-// First Routes for Authentication, then for Restaurants, and finally for Menu Items
+// Firstly, Routes for Authentication, then for Restaurants, and finally for Menu Items
 
 app.use('/api/v1/auth', authRoutes);
 
@@ -44,6 +45,9 @@ app.use('/api/v1/menu', menuRoutes);
 
 app.use('/api/v1/cart', cartRoutes);
 
+// Fifthly, mount the order routes after the cart routes
+
+app.use('/api/v1/orders', orderRoutes);
 
 
 
