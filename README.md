@@ -341,6 +341,6 @@ This project is **proprietary software** developed and maintained by **DevCore S
 
 <div align="center">
 
-**© 2026 DevCore Solutions · Made with by Fourkan Bin Ilias & Kazi Mehedi Hasan**
+**© 2026 DevCore Solutions · Made by Fourkan Bin Ilias (Pinon) & Kazi Mehedi Hasan (Samin)**
 
 </div>
