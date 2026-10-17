@@ -9,6 +9,7 @@ import restaurantRoutes from './routes/restaurant.routes.js';
 import menuRoutes from './routes/menu.routes.js';
 import cartRoutes from './routes/cart.routes.js';
 import orderRoutes from './routes/order.routes.js';
+import socialRoutes from './routes/social.routes.js';
 const app = express();
 
 
@@ -48,6 +49,10 @@ app.use('/api/v1/cart', cartRoutes);
 // Fifthly, mount the order routes after the cart routes
 
 app.use('/api/v1/orders', orderRoutes);
+
+// Sixthly, mount the social routes after the order routes
+
+app.use('/api/v1', socialRoutes);
 
 
 
