@@ -1,8 +1,326 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
-generator client {
-  provider = "prisma-client-js"
+enum Role {
+  USER
+  VENDOR
+  ADMIN
+  SUPERADMIN
+}
+
+enum RestaurantStatus {
+  DRAFT
+  PENDING
+  PUBLISHED
+  UNPUBLISHED
+  REJECTED
+}
+
+enum PriceRange {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum OrderType {
+  DELIVERY
+  PICKUP
+  DINE_IN
+}
+
+enum OrderStatus {
+  PENDING
+  ACCEPTED
+  PREPARING
+  OUT_FOR_DELIVERY
+  DELIVERED
+  CANCELLED
+  REJECTED
+}
+
+enum PaymentMethod {
+  STRIPE
+  COD
+}
+
+enum PaymentStatus {
+  UNPAID
+  PAID
+  FAILED
+  REFUNDED
+}
+
+enum ReservationStatus {
+  PENDING
+  CONFIRMED
+  REJECTED
+  CANCELLED
+}
+
+enum DiscountType {
+  PERCENT
+  FIXED
+}
+
+enum TransactionType {
+  ORDER_PAYMENT
+  LISTING_FEE
+  REFUND
+}
+
+enum TransactionStatus {
+  SUCCESS
+  FAILED
+  PENDING
+}
+
+model User {
+  id            String   @id @default(cuid())
+  name          String
+  email         String   @unique
+  passwordHash  String?  // empty for Google-only users
+  googleId      String?  @unique
+  role          Role     @default(USER)
+  phone         String?
+  avatarUrl     String?
+  isBanned      Boolean  @default(false)
+  loyaltyPoints Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  addresses          Address[]
+  restaurant         Restaurant?
+  cartItems          CartItem[]
+  orders             Order[]
+  reservations       Reservation[]
+  reviews            Review[]
+  favorites          Favorite[]
+  resetTokens        PasswordResetToken[]
+  transactions       Transaction[]
+}
+
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  userId    String
+  tokenHash String    @unique
+  usedAt    DateTime?
+  expiresAt DateTime
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Address {
+  id          String  @id @default(cuid())
+  userId      String
+  label       String  // Home, Office
+  addressLine String
+  lat         Float?
+  lng         Float?
+  isDefault   Boolean @default(false)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Restaurant {
+  id              String           @id @default(cuid())
+  ownerId         String           @unique // one vendor one restaurant
+  name            String
+  description     String?
+  cuisine         String
+  coverUrl        String?
+  gallery         String[]
+  priceRange      PriceRange       @default(MEDIUM)
+  opensAt         String           // "10:00"
+  closesAt        String           // "22:00"
+  address         String
+  lat             Float?
+  lng             Float?
+  status          RestaurantStatus @default(DRAFT)
+  listingFeePaid  Boolean          @default(false)
+  isFeatured      Boolean          @default(false)
+  avgRating       Float            @default(0)
+  reviewCount     Int              @default(0)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  owner        User          @relation(fields: [ownerId], references: [id])
+  menuItems    MenuItem[]
+  orders       Order[]
+  reservations Reservation[]
+  reviews      Review[]
+  favorites    Favorite[]
+
+  @@index([status, cuisine])
+  @@index([avgRating])
+}
+
+model MenuItem {
+  id           String   @id @default(cuid())
+  restaurantId String
+  name         String
+  description  String?
+  price        Decimal  @db.Decimal(10, 2)
+  category     String   // Starters, Mains, Desserts, Drinks
+  imageUrl     String?
+  isAvailable  Boolean  @default(true) // vendor toggle
+  isPublished  Boolean  @default(true) // publish / unpublish
+  soldCount    Int      @default(0)    // for Popular badge
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  cartItems  CartItem[]
+  orderItems OrderItem[]
+  favorites  Favorite[]
+
+  @@index([restaurantId, category])
+}
+
+model CartItem {
+  id         String @id @default(cuid())
+  userId     String
+  menuItemId String
+  quantity   Int    @default(1)
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  menuItem MenuItem @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, menuItemId])
+}
+
+model Coupon {
+  id           String       @id @default(cuid())
+  code         String       @unique
+  value        Decimal      @db.Decimal(10, 2)
+  minOrder     Decimal      @default(0) @db.Decimal(10, 2)
+  maxDiscount  Decimal?     @db.Decimal(10, 2)
+  discountType DiscountType @default(PERCENT)
+  usageLimit   Int?
+  usedCount    Int          @default(0)
+  expiresAt    DateTime?
+  isActive     Boolean      @default(true)
+
+  orders Order[]
+}
+
+model Order {
+  id                  String        @id @default(cuid())
+  userId              String
+  restaurantId        String
+  orderType           OrderType
+  status              OrderStatus   @default(PENDING)
+  paymentMethod       PaymentMethod
+  paymentStatus       PaymentStatus @default(UNPAID)
+  subtotal            Decimal       @db.Decimal(10, 2)
+  discount            Decimal       @default(0) @db.Decimal(10, 2)
+  deliveryFee         Decimal       @default(0) @db.Decimal(10, 2)
+  total               Decimal       @db.Decimal(10, 2)
+  commissionAmount    Decimal       @default(0) @db.Decimal(10, 2) // saved at order time
+  pointsEarned        Int           @default(0)
+  couponId            String?
+  deliveryAddress     String?
+  deliveryLat         Float?
+  deliveryLng         Float?
+  estimatedDeliveryAt DateTime?
+  stripeSessionId     String?       @unique
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+
+  user         User          @relation(fields: [userId], references: [id])
+  restaurant   Restaurant    @relation(fields: [restaurantId], references: [id])
+  coupon       Coupon?       @relation(fields: [couponId], references: [id])
+  items        OrderItem[]
+  transactions Transaction[]
+
+  @@index([userId, createdAt])
+  @@index([restaurantId, status])
+}
+
+model OrderItem {
+  id         String  @id @default(cuid())
+  orderId    String
+  menuItemId String?
+  name       String  // copy of name at order time
+  price      Decimal @db.Decimal(10, 2) // copy of price at order time
+  quantity   Int
+
+  order    Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  menuItem MenuItem? @relation(fields: [menuItemId], references: [id], onDelete: SetNull)
+}
+
+model Transaction {
+  id              String            @id @default(cuid())
+  userId          String            // who paid
+  orderId         String?
+  type            TransactionType
+  method          PaymentMethod
+  status          TransactionStatus @default(PENDING)
+  amount          Decimal           @db.Decimal(10, 2)
+  stripePaymentId String?
+  createdAt       DateTime          @default(now())
+
+  user  User   @relation(fields: [userId], references: [id])
+  order Order? @relation(fields: [orderId], references: [id])
+
+  @@index([createdAt])
+}
+
+model Reservation {
+  id           String            @id @default(cuid())
+  userId       String
+  restaurantId String
+  reservedFor  DateTime          // date + time together
+  partySize    Int
+  note         String?
+  status       ReservationStatus @default(PENDING)
+  createdAt    DateTime          @default(now())
+
+  user       User       @relation(fields: [userId], references: [id])
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  @@index([restaurantId, status])
+}
+
+model Review {
+  id           String   @id @default(cuid())
+  userId       String
+  restaurantId String
+  rating       Int      // 1 to 5
+  comment      String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, restaurantId]) // one review per user per restaurant
+}
+
+model Favorite {
+  id           String   @id @default(cuid())
+  userId       String
+  restaurantId String?
+  menuItemId   String?
+  createdAt    DateTime @default(now())
+
+  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  restaurant Restaurant? @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  menuItem   MenuItem?   @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, restaurantId])
+  @@unique([userId, menuItemId])
+}
+
+model PlatformSetting {
+  id              Int     @id @default(1) // always one row
+  commissionPercent Decimal @default(10) @db.Decimal(5, 2)
+  listingFee      Decimal @default(20) @db.Decimal(10, 2)
+  maintenanceMode Boolean @default(false)
 }
