@@ -94,15 +94,15 @@ model User {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  addresses          Address[]
-  restaurant         Restaurant?
-  cartItems          CartItem[]
-  orders             Order[]
-  reservations       Reservation[]
-  reviews            Review[]
-  favorites          Favorite[]
-  resetTokens        PasswordResetToken[]
-  transactions       Transaction[]
+  addresses     Address[]
+  restaurant    Restaurant?
+  cartItems     CartItem[]
+  orders        Order[]
+  reservations  Reservation[]
+  reviews       Review[]
+  favorites     Favorite[]
+  resetTokens   PasswordResetToken[]
+  transactions  Transaction[]
 }
 
 model PasswordResetToken {
@@ -129,28 +129,28 @@ model Address {
 }
 
 model Restaurant {
-  id              String           @id @default(cuid())
-  ownerId         String           @unique // one vendor one restaurant
-  name            String
-  description     String?
-  cuisine         String
-  coverUrl        String?
-  gallery         String[]
-  priceRange      PriceRange       @default(MEDIUM)
-  opensAt         String           // "10:00"
-  closesAt        String           // "22:00"
-  address         String
-  lat             Float?
-  lng             Float?
-  status          RestaurantStatus @default(DRAFT)
-  listingFeePaid  Boolean          @default(false)
-  isFeatured      Boolean          @default(false)
-  avgRating       Float            @default(0)
-  reviewCount     Int              @default(0)
-  createdAt       DateTime         @default(now())
-  updatedAt       DateTime         @updatedAt
+  id             String           @id @default(cuid())
+  ownerId        String           @unique // one vendor one restaurant
+  name           String
+  description    String?
+  cuisine        String
+  coverUrl       String?
+  gallery        String[]
+  priceRange     PriceRange       @default(MEDIUM)
+  opensAt        String           // "10:00"
+  closesAt       String           // "22:00"
+  address        String
+  lat            Float?
+  lng            Float?
+  status         RestaurantStatus @default(DRAFT)
+  listingFeePaid Boolean          @default(false)
+  isFeatured     Boolean          @default(false)
+  avgRating      Float            @default(0)
+  reviewCount    Int              @default(0)
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
 
-  owner        User          @relation(fields: [ownerId], references: [id])
+  owner        User         @relation(fields: [ownerId], references: [id])
   menuItems    MenuItem[]
   orders       Order[]
   reservations Reservation[]
@@ -162,16 +162,41 @@ model Restaurant {
 }
 
 model MenuItem {
-  id           String   @id @default(cuid())
-  restaurantId String
-  name         String
+  id                   String   @id @default(cuid())
+  restaurantId         String
+  
+  // Specific required fields for seeding & frontend mapping
+  menuName             String
+  cuisineCategory      String   // e.g., "italian", "burger", "sushi", "desi"
+  priceTier            String   // e.g., "$", "$$", "$$$"
+  rating               Float    @default(4.8)
+  reviewCount          Int      @default(120)
+  restaurantName       String
+  deliveryTime         String   // e.g., "25-35 mins"
+  deliveryFee          Float    @default(50.0)
+  image                String
+  imageAlt             String
+  badge                String?  // e.g., "Top Rated", "Chef's Special"
+  neighborhood         String   // e.g., "Gulshan 1 & 2", "Banani Avenue"
+  
+  // Status & Filters
+  isOpen               Boolean  @default(true)
+  isHalal              Boolean  @default(true)
+  isVegetarianFriendly Boolean  @default(false)
+  isKidFriendly        Boolean  @default(true)
+  isDineIn             Boolean  @default(true)
+  isDelivery           Boolean  @default(true)
+  featured             Boolean  @default(false)
+
+  // Legacy / existing compatibility fields
+  name         String   @default("Menu Item")
   description  String?
-  price        Decimal  @db.Decimal(10, 2)
-  category     String   // Starters, Mains, Desserts, Drinks
+  price        Decimal  @default(0.00) @db.Decimal(10, 2)
+  category     String   @default("Mains")
   imageUrl     String?
-  isAvailable  Boolean  @default(true) // vendor toggle
-  isPublished  Boolean  @default(true) // publish / unpublish
-  soldCount    Int      @default(0)    // for Popular badge
+  isAvailable  Boolean  @default(true)
+  isPublished  Boolean  @default(true)
+  soldCount    Int      @default(0)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -180,7 +205,8 @@ model MenuItem {
   orderItems OrderItem[]
   favorites  Favorite[]
 
-  @@index([restaurantId, category])
+  @@index([restaurantId, cuisineCategory])
+  @@index([featured])
 }
 
 model CartItem {
@@ -251,7 +277,7 @@ model OrderItem {
   price      Decimal @db.Decimal(10, 2) // copy of price at order time
   quantity   Int
 
-  order    Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  order    Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
   menuItem MenuItem? @relation(fields: [menuItemId], references: [id], onDelete: SetNull)
 }
 
@@ -310,7 +336,7 @@ model Favorite {
   menuItemId   String?
   createdAt    DateTime @default(now())
 
-  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
   restaurant Restaurant? @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
   menuItem   MenuItem?   @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
 
@@ -319,8 +345,8 @@ model Favorite {
 }
 
 model PlatformSetting {
-  id              Int     @id @default(1) // always one row
+  id                Int     @id @default(1) // always one row
   commissionPercent Decimal @default(10) @db.Decimal(5, 2)
-  listingFee      Decimal @default(20) @db.Decimal(10, 2)
-  maintenanceMode Boolean @default(false)
+  listingFee        Decimal @default(20) @db.Decimal(10, 2)
+  maintenanceMode   Boolean @default(false)
 }
