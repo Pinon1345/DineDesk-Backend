@@ -2,6 +2,61 @@
 import { Request, Response } from 'express';
 import { prisma } from '../config/db.js';
 
+// Get all menu items with optional filtering and search (Public / Explore Page)
+export const getAllMenus = async (req: Request, res: Response): Promise<void> => {
+    try {
+        const { cuisine, q, neighborhood, featured } = req.query;
+
+        const where: any = { isPublished: true, isAvailable: true };
+
+        if (cuisine && cuisine !== 'all') {
+            where.cuisineCategory = String(cuisine).toLowerCase();
+        }
+
+        if (neighborhood) {
+            where.neighborhood = { contains: String(neighborhood), mode: 'insensitive' };
+        }
+
+        if (featured === 'true') {
+            where.featured = true;
+        }
+
+        if (q) {
+            where.OR = [
+                { menuName: { contains: String(q), mode: 'insensitive' } },
+                { restaurantName: { contains: String(q), mode: 'insensitive' } },
+                { description: { contains: String(q), mode: 'insensitive' } }
+            ];
+        }
+
+        const menus = await prisma.menuItem.findMany({
+            where,
+            orderBy: { createdAt: 'desc' },
+        });
+
+        res.status(200).json({ success: true, data: menus });
+    } catch (error) {
+        console.error('Get all menus error:', error);
+        res.status(500).json({ success: false, message: 'Internal server error' });
+    }
+};
+
+// Get top 6 featured menus for home page (Public)
+export const getFeaturedMenus = async (req: Request, res: Response): Promise<void> => {
+    try {
+        const featuredMenus = await prisma.menuItem.findMany({
+            where: { featured: true, isPublished: true, isAvailable: true },
+            take: 6,
+            orderBy: { createdAt: 'desc' },
+        });
+
+        res.status(200).json({ success: true, data: featuredMenus });
+    } catch (error) {
+        console.error('Get featured menus error:', error);
+        res.status(500).json({ success: false, message: 'Internal server error' });
+    }
+};
+
 // Get all menu items for a specific restaurant (Public)
 export const getRestaurantMenu = async (req: Request, res: Response): Promise<void> => {
     try {
