@@ -31,7 +31,7 @@ export const getAllMenus = async (req: Request, res: Response): Promise<void> =>
 
         const menus = await prisma.menuItem.findMany({
             where,
-            orderBy: { createdAt: 'desc' },
+            orderBy: { createdAt: 'asc' }, // ✅ Sorted sequentially from #1 to #400
         });
 
         res.status(200).json({ success: true, data: menus });
@@ -47,7 +47,7 @@ export const getFeaturedMenus = async (req: Request, res: Response): Promise<voi
         const featuredMenus = await prisma.menuItem.findMany({
             where: { featured: true, isPublished: true, isAvailable: true },
             take: 6,
-            orderBy: { createdAt: 'desc' },
+            orderBy: { createdAt: 'asc' }, // ✅ Sorted sequentially for home page as well
         });
 
         res.status(200).json({ success: true, data: featuredMenus });
@@ -70,7 +70,7 @@ export const getRestaurantMenu = async (req: Request, res: Response): Promise<vo
 
         const menuItems = await prisma.menuItem.findMany({
             where,
-            orderBy: { createdAt: 'desc' },
+            orderBy: { createdAt: 'asc' }, // ✅ Sorted sequentially
         });
 
         res.status(200).json({ success: true, data: menuItems });
