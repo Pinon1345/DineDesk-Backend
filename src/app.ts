@@ -43,7 +43,7 @@ app.use('/api/v1/restaurants', restaurantRoutes);
 
 // Thirdly, mount the menu routes after the restaurant routes
 
-app.use('/api/v1/menu', menuRoutes);
+app.use('/api/v1/menus', menuRoutes);
 
 // Fourthly, mount the cart routes after the menu routes
 
@@ -55,7 +55,7 @@ app.use('/api/v1/orders', orderRoutes);
 
 // Sixthly, mount the social routes after the order routes
 
-app.use('/api/v1', socialRoutes);
+app.use('/api/v1/social', socialRoutes);
 
 // Seventh, mount the webhook routes after the social routes
 
