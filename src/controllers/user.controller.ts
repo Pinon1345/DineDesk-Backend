@@ -3,13 +3,12 @@ import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
-// Get Customer Profile
+// 1. GET User Profile from PostgreSQL
 export const getUserProfile = async (req: Request, res: Response): Promise<void> => {
     try {
-        // Assuming authentication middleware attaches user id to req.user
-        const userId = (req as any).user?.id;
+        const userId = (req as any).user?.id; // Attached by your authenticate middleware
         if (!userId) {
-            res.status(401).json({ success: false, message: "Unauthorized" });
+            res.status(401).json({ success: false, message: "Unauthorized: No user ID found" });
             return;
         }
 
@@ -17,7 +16,7 @@ export const getUserProfile = async (req: Request, res: Response): Promise<void>
             where: { id: userId },
             select: {
                 id: true,
-                fullName: true,
+                name: true, // Map to fullName on frontend if needed
                 email: true,
                 phone: true,
                 avatarUrl: true,
@@ -27,17 +26,24 @@ export const getUserProfile = async (req: Request, res: Response): Promise<void>
         });
 
         if (!user) {
-            res.status(404).json({ success: false, message: "User not found" });
+            res.status(404).json({ success: false, message: "User not found in database" });
             return;
         }
 
-        res.status(200).json({ success: true, user });
+        // Map Prisma 'name' to frontend 'fullName' property expected by TypeScript types
+        res.status(200).json({
+            success: true,
+            user: {
+                ...user,
+                fullName: user.name,
+            },
+        });
     } catch (error: any) {
         res.status(500).json({ success: false, message: error.message });
     }
 };
 
-// Update Customer Profile
+// 2. PUT Update User Profile in PostgreSQL
 export const updateUserProfile = async (req: Request, res: Response): Promise<void> => {
     try {
         const userId = (req as any).user?.id;
@@ -48,10 +54,11 @@ export const updateUserProfile = async (req: Request, res: Response): Promise<vo
 
         const { fullName, email, phone, avatarUrl, language, dietaryPreferences } = req.body;
 
+        // Update the exact user record in PostgreSQL via Prisma
         const updatedUser = await prisma.user.update({
             where: { id: userId },
             data: {
-                fullName,
+                name: fullName, // Stored in the 'name' column of your User model
                 email,
                 phone,
                 avatarUrl,
@@ -62,8 +69,11 @@ export const updateUserProfile = async (req: Request, res: Response): Promise<vo
 
         res.status(200).json({
             success: true,
-            message: "Profile updated successfully in database",
-            user: updatedUser,
+            message: "Profile successfully stored in database",
+            user: {
+                ...updatedUser,
+                fullName: updatedUser.name,
+            },
         });
     } catch (error: any) {
         res.status(500).json({ success: false, message: error.message });
