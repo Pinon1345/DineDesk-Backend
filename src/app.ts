@@ -12,6 +12,7 @@ import orderRoutes from './routes/order.routes.js';
 import socialRoutes from './routes/social.routes.js';
 import adminRoutes from './routes/admin.routes.js';
 import webhookRoutes from './routes/webhook.routes.js';
+import userRoutes from './routes/user.routes.js';
 const app = express();
 
 
@@ -64,6 +65,10 @@ app.use('/api/v1/webhook', webhookRoutes);
 // Eighthly, mount the admin routes after the webhook routes
 
 app.use('/api/v1', adminRoutes);
+
+// Ninthly, mount the user routes after the admin routes
+
+app.use('/api/v1/users', userRoutes);
 
 
 

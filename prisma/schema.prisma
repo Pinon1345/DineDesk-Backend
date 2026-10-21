@@ -80,29 +80,38 @@ enum TransactionStatus {
   PENDING
 }
 
-model User {
-  id            String   @id @default(cuid())
-  name          String
-  email         String   @unique
-  passwordHash  String?  // empty for Google-only users
-  googleId      String?  @unique
-  role          Role     @default(USER)
-  phone         String?
-  avatarUrl     String?
-  isBanned      Boolean  @default(false)
-  loyaltyPoints Int      @default(0)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+enum DietaryPreference {
+  halal_only
+  nut_allergy
+  mild_spice
+  no_shellfish
+}
 
-  addresses     Address[]
-  restaurant    Restaurant?
-  cartItems     CartItem[]
-  orders        Order[]
-  reservations  Reservation[]
-  reviews       Review[]
-  favorites     Favorite[]
-  resetTokens   PasswordResetToken[]
-  transactions  Transaction[]
+model User {
+  id                 String               @id @default(cuid())
+  name               String
+  email              String               @unique
+  passwordHash       String?              // empty for Google-only users
+  googleId           String?              @unique
+  role               Role                 @default(USER)
+  phone              String?
+  avatarUrl          String?
+  language           String               @default("en")
+  dietaryPreferences DietaryPreference[]  @default([])
+  isBanned           Boolean              @default(false)
+  loyaltyPoints      Int                  @default(0)
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
+
+  addresses          Address[]
+  restaurant         Restaurant?
+  cartItems          CartItem[]
+  orders             Order[]
+  reservations       Reservation[]
+  reviews            Review[]
+  favorites          Favorite[]
+  resetTokens        PasswordResetToken[]
+  transactions       Transaction[]
 }
 
 model PasswordResetToken {
@@ -150,7 +159,7 @@ model Restaurant {
   createdAt      DateTime         @default(now())
   updatedAt      DateTime         @updatedAt
 
-  owner        User         @relation(fields: [ownerId], references: [id])
+  owner        User          @relation(fields: [ownerId], references: [id])
   menuItems    MenuItem[]
   orders       Order[]
   reservations Reservation[]
@@ -277,7 +286,7 @@ model OrderItem {
   price      Decimal @db.Decimal(10, 2) // copy of price at order time
   quantity   Int
 
-  order    Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  order    Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
   menuItem MenuItem? @relation(fields: [menuItemId], references: [id], onDelete: SetNull)
 }
 
