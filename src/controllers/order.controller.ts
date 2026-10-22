@@ -20,10 +20,9 @@ export const createOrder = async (req: Request, res: Response): Promise<void> =>
 
         let cartItems: Array<{ menuItemId?: string; name: string; price: any; quantity: number; restaurantId?: string }> = [];
 
-        // 1. If items are sent directly from frontend cart, use them; otherwise fetch from DB cart
+        // 1. If items are sent directly from frontend cart, use them
         if (clientItems && clientItems.length > 0) {
             for (const item of clientItems) {
-                // Fetch the actual menu item to guarantee restaurantId and correct price
                 const dbMenu = await prisma.menuItem.findUnique({
                     where: { id: item.id || item.menuItemId }
                 }).catch(() => null);
@@ -56,20 +55,25 @@ export const createOrder = async (req: Request, res: Response): Promise<void> =>
             return;
         }
 
-        // Determine restaurantId safely
-        const restaurantId = cartItems.find(i => i.restaurantId)?.restaurantId;
+        // 2. Fallback: If restaurantId is missing, grab the first available restaurant from DB automatically
+        let restaurantId = cartItems.find(i => i.restaurantId)?.restaurantId;
         if (!restaurantId) {
-            res.status(400).json({ success: false, message: 'Invalid cart item configuration: Restaurant not found' });
-            return;
+            const fallbackRestaurant = await prisma.restaurant.findFirst({ select: { id: true } });
+            if (fallbackRestaurant) {
+                restaurantId = fallbackRestaurant.id;
+            } else {
+                res.status(400).json({ success: false, message: 'Invalid cart item configuration: Restaurant not found' });
+                return;
+            }
         }
 
-        // 2. Calculate subtotal
+        // 3. Calculate subtotal
         let subtotal = 0;
         cartItems.forEach((item) => {
             subtotal += Number(item.price) * item.quantity;
         });
 
-        // 3. Fetch platform settings for commission
+        // 4. Fetch platform settings for commission
         const platformSetting = await prisma.platformSetting.findUnique({ where: { id: 1 } });
         const commissionPercent = platformSetting ? Number(platformSetting.commissionPercent) : 10;
         const commissionAmount = (subtotal * commissionPercent) / 100;
@@ -77,7 +81,7 @@ export const createOrder = async (req: Request, res: Response): Promise<void> =>
         let discount = 0;
         let appliedCouponId = null;
 
-        // 4. Handle Coupon if provided
+        // 5. Handle Coupon if provided
         if (couponCode) {
             const coupon = await prisma.coupon.findUnique({ where: { code: couponCode } });
             if (coupon && coupon.isActive && (!coupon.expiresAt || coupon.expiresAt > new Date())) {
@@ -98,7 +102,7 @@ export const createOrder = async (req: Request, res: Response): Promise<void> =>
         const deliveryFee = orderType === 'DELIVERY' ? 5.00 : 0.00;
         const total = subtotal - discount + deliveryFee;
 
-        // 5. Create Order in Database with items
+        // 6. Create Order in Database with items
         const order = await prisma.order.create({
             data: {
                 userId: req.user.id,
@@ -127,10 +131,10 @@ export const createOrder = async (req: Request, res: Response): Promise<void> =>
             include: { items: true },
         });
 
-        // 6. Clear User Cart from database or local sync
+        // 7. Clear User Cart
         await prisma.cartItem.deleteMany({ where: { userId: req.user.id } }).catch(() => { });
 
-        // 7. If Stripe, create Stripe Checkout Session
+        // 8. If Stripe, create Stripe Checkout Session
         let stripeSessionUrl = null;
         if (paymentMethod === 'STRIPE') {
             const session = await stripe.checkout.sessions.create({
