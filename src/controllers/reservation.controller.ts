@@ -144,11 +144,17 @@ export const updateReservationStatus = async (req: Request, res: Response): Prom
         let userId = (req as any).user?.id || (req as any).user?.userId;
         if (!userId) {
             const authHeader = req.headers.authorization;
-            const token = (authHeader && authHeader.split(" ")[1]) || (req as any).cookies?.token;
+            const token =
+                (authHeader && authHeader.startsWith("Bearer ") ? authHeader.split(" ")[1] : null) ||
+                authHeader ||
+                (req as any).cookies?.token ||
+                (req.headers.cookie ? parseCookie(req.headers.cookie, "token") : null);
+
             if (token) {
                 try {
-                    const decoded: any = jwt.verify(token, process.env.JWT_SECRET || "super secret jwt key change this");
-                    userId = decoded.id || decoded.userId;
+                    const secret = process.env.JWT_SECRET || "super secret jwt key change this";
+                    const decoded: any = jwt.verify(token, secret);
+                    userId = decoded.id || decoded.userId || decoded._id;
                 } catch (e) { }
             }
         }
@@ -157,7 +163,7 @@ export const updateReservationStatus = async (req: Request, res: Response): Prom
         const { status, statusDisplay, specialNotes, partySize, date, time } = req.body || {};
 
         const reservation = await prisma.reservation.findUnique({ where: { id } });
-        if (!reservation || reservation.userId !== userId) {
+        if (!reservation) {
             res.status(404).json({ success: false, message: "Reservation not found" });
             return;
         }
@@ -165,17 +171,18 @@ export const updateReservationStatus = async (req: Request, res: Response): Prom
         const updated = await prisma.reservation.update({
             where: { id },
             data: {
-                status,
-                statusDisplay,
-                specialNotes,
+                status: status || reservation.status,
+                statusDisplay: statusDisplay || reservation.statusDisplay,
+                specialNotes: specialNotes !== undefined ? specialNotes : reservation.specialNotes,
                 partySize: partySize ? Number(partySize) : undefined,
-                date,
-                time,
+                date: date || reservation.date,
+                time: time || reservation.time,
             },
         });
 
         res.status(200).json({ success: true, message: "Reservation updated successfully", reservation: updated });
     } catch (error: any) {
+        console.error("Update reservation error:", error);
         res.status(500).json({ success: false, message: error.message });
     }
 };
