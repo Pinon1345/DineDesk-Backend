@@ -4,9 +4,7 @@ import Stripe from 'stripe';
 import { prisma } from '../config/db.js';
 import { env } from '../config/env.js';
 
-const stripe = new Stripe(env.STRIPE_SECRET_KEY || 'sk_test_dummy', {
-    apiVersion: '2025-02-28.acacia' as any,
-});
+const stripe = new Stripe(env.STRIPE_SECRET_KEY || 'sk_test_dummy');
 
 // Place a new order
 export const createOrder = async (req: Request, res: Response): Promise<void> => {
