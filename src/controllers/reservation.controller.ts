@@ -1,4 +1,4 @@
-import { Request, Response } from "express"; // Adjust based on where your prisma/db instance is exported
+import { Request, Response } from "express";
 import { prisma } from "../config/db.js";
 
 // Get all customer reservations
@@ -45,14 +45,27 @@ export const createReservation = async (req: Request, res: Response): Promise<vo
             partySize,
             seatingArea,
             tableNumber,
+            reservedFor,
             specialNotes,
         } = body;
+
+        let targetRestaurantId = restaurantId || "restaurant-1";
+        const restaurant = await prisma.restaurant.findUnique({
+            where: { id: targetRestaurantId },
+        }).catch(() => null);
+
+        if (!restaurant) {
+            const firstRest = await prisma.restaurant.findFirst();
+            if (firstRest) {
+                targetRestaurantId = firstRest.id;
+            }
+        }
 
         const newReservation = await prisma.reservation.create({
             data: {
                 userId,
-                restaurantId: restaurantId || "restaurant-1",
-                restaurantName: restaurantName || "Partner Restaurant",
+                restaurantId: targetRestaurantId,
+                restaurantName: restaurantName || restaurant?.name || "Partner Restaurant",
                 restaurantImage: restaurantImage || "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=600&q=80",
                 neighborhood: neighborhood || "Downtown",
                 fullAddress: fullAddress || "Global City",
@@ -66,6 +79,7 @@ export const createReservation = async (req: Request, res: Response): Promise<vo
                 tableNumber: String(tableNumber || "1"),
                 status: "CONFIRMED",
                 statusDisplay: "Confirmed",
+                reservedFor: reservedFor ? new Date(reservedFor) : new Date(),
                 specialNotes: specialNotes || "",
                 isFeaturedUpcoming: true,
             },
