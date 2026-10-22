@@ -136,7 +136,6 @@ export const createOrder = async (req: Request, res: Response): Promise<void> =>
         let stripeSessionUrl = null;
         if (paymentMethod === 'STRIPE') {
             const session = await stripe.checkout.sessions.create({
-                payment_method_types: ['card'],
                 line_items: order.items.map((item) => ({
                     price_data: {
                         currency: 'usd',
