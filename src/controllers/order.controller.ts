@@ -167,3 +167,48 @@ export const getMyOrders = async (req: Request, res: Response): Promise<void> =>
         res.status(500).json({ success: false, message: 'Internal server error' });
     }
 };
+
+// Cancel a user order
+export const cancelOrder = async (req: Request, res: Response): Promise<void> => {
+    try {
+        if (!req.user) {
+            res.status(401).json({ success: false, message: 'Unauthorized' });
+            return;
+        }
+
+        const id = String(req.params.id);
+
+        const order = await prisma.order.findUnique({
+            where: { id },
+        });
+
+        if (!order || order.userId !== req.user.id) {
+            res.status(404).json({ success: false, message: 'Order not found' });
+            return;
+        }
+
+        // Only allow cancellation if order is still PENDING or ACCEPTED
+        if (order.status !== 'PENDING' && order.status !== 'ACCEPTED') {
+            res.status(400).json({
+                success: false,
+                message: 'Order cannot be cancelled because it is already being prepared or completed.'
+            });
+            return;
+        }
+
+        const updatedOrder = await prisma.order.update({
+            where: { id },
+            data: { status: 'CANCELLED' },
+            include: { items: true, restaurant: { select: { id: true, name: true, coverUrl: true } } },
+        });
+
+        res.status(200).json({
+            success: true,
+            message: 'Order cancelled successfully',
+            data: updatedOrder,
+        });
+    } catch (error) {
+        console.error('Cancel order error:', error);
+        res.status(500).json({ success: false, message: 'Internal server error' });
+    }
+};
