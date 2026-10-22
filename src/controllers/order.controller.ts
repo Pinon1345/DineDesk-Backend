@@ -16,30 +16,57 @@ export const createOrder = async (req: Request, res: Response): Promise<void> =>
             return;
         }
 
-        const { orderType, paymentMethod, deliveryAddress, deliveryLat, deliveryLng, couponCode } = req.body;
+        const { orderType, paymentMethod, deliveryAddress, deliveryLat, deliveryLng, couponCode, items: clientItems } = req.body;
 
-        // 1. Fetch user's cart items
-        const cartItems = await prisma.cartItem.findMany({
-            where: { userId: req.user.id },
-            include: { menuItem: true },
-        });
+        let cartItems: Array<{ menuItemId?: string; name: string; price: any; quantity: number; restaurantId?: string }> = [];
+
+        // 1. If items are sent directly from frontend cart, use them; otherwise fetch from DB cart
+        if (clientItems && clientItems.length > 0) {
+            for (const item of clientItems) {
+                // Fetch the actual menu item to guarantee restaurantId and correct price
+                const dbMenu = await prisma.menuItem.findUnique({
+                    where: { id: item.id || item.menuItemId }
+                }).catch(() => null);
+
+                cartItems.push({
+                    menuItemId: dbMenu ? dbMenu.id : undefined,
+                    name: item.name || dbMenu?.name || "Menu Item",
+                    price: dbMenu ? Number(dbMenu.price) : Number(item.price || 0),
+                    quantity: Number(item.quantity || 1),
+                    restaurantId: dbMenu?.restaurantId || item.restaurantId,
+                });
+            }
+        } else {
+            const dbCart = await prisma.cartItem.findMany({
+                where: { userId: req.user.id },
+                include: { menuItem: true },
+            });
+
+            cartItems = dbCart.map(ci => ({
+                menuItemId: ci.menuItemId,
+                name: ci.menuItem.name,
+                price: Number(ci.menuItem.price),
+                quantity: ci.quantity,
+                restaurantId: ci.menuItem.restaurantId,
+            }));
+        }
 
         if (cartItems.length === 0) {
             res.status(400).json({ success: false, message: 'Your cart is empty' });
             return;
         }
 
-        const restaurantId = cartItems[0]?.menuItem?.restaurantId;
-
+        // Determine restaurantId safely
+        const restaurantId = cartItems.find(i => i.restaurantId)?.restaurantId;
         if (!restaurantId) {
-            res.status(400).json({ success: false, message: 'Invalid cart item configuration' });
+            res.status(400).json({ success: false, message: 'Invalid cart item configuration: Restaurant not found' });
             return;
         }
 
         // 2. Calculate subtotal
         let subtotal = 0;
         cartItems.forEach((item) => {
-            subtotal += Number(item.menuItem.price) * item.quantity;
+            subtotal += Number(item.price) * item.quantity;
         });
 
         // 3. Fetch platform settings for commission
@@ -71,13 +98,13 @@ export const createOrder = async (req: Request, res: Response): Promise<void> =>
         const deliveryFee = orderType === 'DELIVERY' ? 5.00 : 0.00;
         const total = subtotal - discount + deliveryFee;
 
-        // 5. Create Order in Database
+        // 5. Create Order in Database with items
         const order = await prisma.order.create({
             data: {
                 userId: req.user.id,
                 restaurantId,
-                orderType,
-                paymentMethod,
+                orderType: orderType || 'DELIVERY',
+                paymentMethod: paymentMethod || 'STRIPE',
                 paymentStatus: 'UNPAID',
                 subtotal,
                 discount,
@@ -85,14 +112,14 @@ export const createOrder = async (req: Request, res: Response): Promise<void> =>
                 total,
                 commissionAmount,
                 couponId: appliedCouponId,
-                deliveryAddress,
+                deliveryAddress: deliveryAddress || 'Standard Address',
                 deliveryLat,
                 deliveryLng,
                 items: {
                     create: cartItems.map((ci) => ({
                         menuItemId: ci.menuItemId,
-                        name: ci.menuItem.name,
-                        price: ci.menuItem.price,
+                        name: ci.name,
+                        price: ci.price,
                         quantity: ci.quantity,
                     })),
                 },
@@ -100,8 +127,8 @@ export const createOrder = async (req: Request, res: Response): Promise<void> =>
             include: { items: true },
         });
 
-        // 6. Clear User Cart
-        await prisma.cartItem.deleteMany({ where: { userId: req.user.id } });
+        // 6. Clear User Cart from database or local sync
+        await prisma.cartItem.deleteMany({ where: { userId: req.user.id } }).catch(() => { });
 
         // 7. If Stripe, create Stripe Checkout Session
         let stripeSessionUrl = null;
@@ -117,8 +144,8 @@ export const createOrder = async (req: Request, res: Response): Promise<void> =>
                     quantity: item.quantity,
                 })),
                 mode: 'payment',
-                success_url: `${env.FRONTEND_URL}/orders/success?order_id=${order.id}`,
-                cancel_url: `${env.FRONTEND_URL}/orders/cancel?order_id=${order.id}`,
+                success_url: `${env.FRONTEND_URL || 'http://localhost:3000'}/orders/success?order_id=${order.id}&session_id={CHECKOUT_SESSION_ID}`,
+                cancel_url: `${env.FRONTEND_URL || 'http://localhost:3000'}/explore?payment=cancelled`,
                 metadata: { orderId: order.id },
             } as any);
 
@@ -138,9 +165,9 @@ export const createOrder = async (req: Request, res: Response): Promise<void> =>
                 stripeSessionUrl,
             },
         });
-    } catch (error) {
+    } catch (error: any) {
         console.error('Create order error:', error);
-        res.status(500).json({ success: false, message: 'Internal server error' });
+        res.status(500).json({ success: false, message: error.message || 'Internal server error' });
     }
 };
 
