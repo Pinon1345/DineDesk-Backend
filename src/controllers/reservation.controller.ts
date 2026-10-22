@@ -1,12 +1,10 @@
-import { Request, Response } from "express";
-import { PrismaClient } from "@prisma/client";
-
-const prisma = new PrismaClient();
+import { Request, Response } from "express"; // Adjust based on where your prisma/db instance is exported
+import { prisma } from "../config/db.js";
 
 // Get all customer reservations
 export const getCustomerReservations = async (req: Request, res: Response): Promise<void> => {
     try {
-        const userId = (req as any).user?.id;
+        const userId = (req as any).user?.id || (req as any).user?.userId;
         if (!userId) {
             res.status(401).json({ success: false, message: "Unauthorized" });
             return;
@@ -26,12 +24,13 @@ export const getCustomerReservations = async (req: Request, res: Response): Prom
 // Create a new reservation
 export const createReservation = async (req: Request, res: Response): Promise<void> => {
     try {
-        const userId = (req as any).user?.id;
+        const userId = (req as any).user?.id || (req as any).user?.userId;
         if (!userId) {
-            res.status(401).json({ success: false, message: "Unauthorized" });
+            res.status(401).json({ success: false, message: "Unauthorized: No user ID found on request" });
             return;
         }
 
+        const body = req.body || {};
         const {
             restaurantId,
             restaurantName,
@@ -47,12 +46,12 @@ export const createReservation = async (req: Request, res: Response): Promise<vo
             seatingArea,
             tableNumber,
             specialNotes,
-        } = req.body;
+        } = body;
 
         const newReservation = await prisma.reservation.create({
             data: {
                 userId,
-                restaurantId,
+                restaurantId: restaurantId || "restaurant-1",
                 restaurantName: restaurantName || "Partner Restaurant",
                 restaurantImage: restaurantImage || "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=600&q=80",
                 neighborhood: neighborhood || "Downtown",
@@ -64,10 +63,10 @@ export const createReservation = async (req: Request, res: Response): Promise<vo
                 mealPeriod: mealPeriod || "Dinner",
                 partySize: Number(partySize) || 2,
                 seatingArea: seatingArea || "Main Dining Hall",
-                tableNumber: tableNumber || "1",
+                tableNumber: String(tableNumber || "1"),
                 status: "CONFIRMED",
                 statusDisplay: "Confirmed",
-                specialNotes,
+                specialNotes: specialNotes || "",
                 isFeaturedUpcoming: true,
             },
         });
@@ -78,6 +77,7 @@ export const createReservation = async (req: Request, res: Response): Promise<vo
             reservation: newReservation,
         });
     } catch (error: any) {
+        console.error("Prisma Reservation Creation Error:", error);
         res.status(500).json({ success: false, message: error.message });
     }
 };
@@ -85,9 +85,9 @@ export const createReservation = async (req: Request, res: Response): Promise<vo
 // Update or Cancel reservation
 export const updateReservationStatus = async (req: Request, res: Response): Promise<void> => {
     try {
-        const userId = (req as any).user?.id;
+        const userId = (req as any).user?.id || (req as any).user?.userId;
         const id = String(req.params.id);
-        const { status, statusDisplay, specialNotes, partySize, date, time } = req.body;
+        const { status, statusDisplay, specialNotes, partySize, date, time } = req.body || {};
 
         const reservation = await prisma.reservation.findUnique({ where: { id } });
         if (!reservation || reservation.userId !== userId) {
