@@ -7,23 +7,30 @@ export const getCustomerReservations = async (req: Request, res: Response): Prom
     try {
         let userId = (req as any).user?.id || (req as any).user?.userId;
 
-        // Fallback: Safely decode token from Authorization header or cookies if middleware didn't attach user
+        // Fallback: Safely decode token from Authorization header or cookies
         if (!userId) {
             const authHeader = req.headers.authorization;
-            const token = (authHeader && authHeader.split(" ")[1]) || (req as any).cookies?.token || (req as any).cookies?.accessToken;
+            const token =
+                (authHeader && authHeader.startsWith("Bearer ") ? authHeader.split(" ")[1] : null) ||
+                authHeader ||
+                (req as any).cookies?.token ||
+                (req as any).cookies?.accessToken ||
+                (req.headers.cookie ? parseCookie(req.headers.cookie, "token") : null);
 
             if (token) {
                 try {
-                    const decoded: any = jwt.verify(token, process.env.JWT_SECRET || "super secret jwt key change this");
-                    userId = decoded.id || decoded.userId;
-                } catch (err) {
-                    // Token verification failed or expired
+                    const secret = process.env.JWT_SECRET || "super secret jwt key change this";
+                    const decoded: any = jwt.verify(token, secret);
+                    userId = decoded.id || decoded.userId || decoded._id;
+                } catch (err: any) {
+                    console.error("JWT Verification Error on Vercel:", err.message);
                 }
             }
         }
 
         if (!userId) {
-            res.status(401).json({ success: false, message: "Unauthorized" });
+            console.warn("Unauthorized access attempt to getCustomerReservations. Headers:", req.headers);
+            res.status(401).json({ success: false, message: "Unauthorized: No valid user session found" });
             return;
         }
 
@@ -34,14 +41,33 @@ export const getCustomerReservations = async (req: Request, res: Response): Prom
 
         res.status(200).json({ success: true, reservations });
     } catch (error: any) {
+        console.error("Get reservations server error:", error);
         res.status(500).json({ success: false, message: error.message });
     }
 };
 
-// Create a new reservation (Fully preserved to guarantee successful posting)
+// Helper to parse cookies manually if cookie-parser is missing on serverless
+function parseCookie(cookieHeader: string, name: string): string | null {
+    const match = cookieHeader.match(new RegExp('(^| )' + name + '=([^;]+)'));
+    return match ? (match[2] || null) : null;
+}
+
+// Create a new reservation (Fully preserved)
 export const createReservation = async (req: Request, res: Response): Promise<void> => {
     try {
-        const userId = (req as any).user?.id || (req as any).user?.userId;
+        let userId = (req as any).user?.id || (req as any).user?.userId;
+
+        if (!userId) {
+            const authHeader = req.headers.authorization;
+            const token = (authHeader && authHeader.split(" ")[1]) || (req as any).cookies?.token;
+            if (token) {
+                try {
+                    const decoded: any = jwt.verify(token, process.env.JWT_SECRET || "super secret jwt key change this");
+                    userId = decoded.id || decoded.userId;
+                } catch (e) { }
+            }
+        }
+
         if (!userId) {
             res.status(401).json({ success: false, message: "Unauthorized: No user ID found on request" });
             return;
@@ -115,7 +141,18 @@ export const createReservation = async (req: Request, res: Response): Promise<vo
 // Update or Cancel reservation
 export const updateReservationStatus = async (req: Request, res: Response): Promise<void> => {
     try {
-        const userId = (req as any).user?.id || (req as any).user?.userId;
+        let userId = (req as any).user?.id || (req as any).user?.userId;
+        if (!userId) {
+            const authHeader = req.headers.authorization;
+            const token = (authHeader && authHeader.split(" ")[1]) || (req as any).cookies?.token;
+            if (token) {
+                try {
+                    const decoded: any = jwt.verify(token, process.env.JWT_SECRET || "super secret jwt key change this");
+                    userId = decoded.id || decoded.userId;
+                } catch (e) { }
+            }
+        }
+
         const id = String(req.params.id);
         const { status, statusDisplay, specialNotes, partySize, date, time } = req.body || {};
 
