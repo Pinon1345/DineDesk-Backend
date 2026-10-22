@@ -59,8 +59,10 @@ enum PaymentStatus {
 enum ReservationStatus {
   PENDING
   CONFIRMED
-  REJECTED
+  COMPLETED
   CANCELLED
+  DECLINED
+  REJECTED
 }
 
 enum DiscountType {
@@ -308,18 +310,32 @@ model Transaction {
 }
 
 model Reservation {
-  id           String            @id @default(cuid())
-  userId       String
-  restaurantId String
-  reservedFor  DateTime          // date + time together
-  partySize    Int
-  note         String?
-  status       ReservationStatus @default(PENDING)
-  createdAt    DateTime          @default(now())
+  id                 String            @id @default(cuid())
+  userId             String
+  restaurantId       String
+  restaurantName     String
+  restaurantImage    String?
+  neighborhood       String?
+  fullAddress        String?
+  cuisine            String?
+  date               String
+  displayDate        String
+  time               String
+  mealPeriod         String
+  partySize          Int
+  seatingArea        String
+  tableNumber        String?
+  status             ReservationStatus @default(CONFIRMED)
+  statusDisplay      String            @default("Confirmed")
+  specialNotes       String?
+  isFeaturedUpcoming Boolean           @default(false)
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
 
-  user       User       @relation(fields: [userId], references: [id])
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
   restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
 
+  @@index([userId, status])
   @@index([restaurantId, status])
 }
 

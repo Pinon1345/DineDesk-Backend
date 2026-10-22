@@ -13,6 +13,7 @@ import socialRoutes from './routes/social.routes.js';
 import adminRoutes from './routes/admin.routes.js';
 import webhookRoutes from './routes/webhook.routes.js';
 import userRoutes from './routes/user.routes.js';
+import reservationRoutes from './routes/reservation.routes.js';
 const app = express();
 
 
@@ -69,6 +70,10 @@ app.use('/api/v1', adminRoutes);
 // Ninthly, mount the user routes after the admin routes
 
 app.use('/api/v1/users', userRoutes);
+
+// Tenthly, mount the reservation routes after the user routes
+
+app.use('/api/v1/reservations', reservationRoutes);
 
 
 
