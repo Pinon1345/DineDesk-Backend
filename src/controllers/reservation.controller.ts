@@ -79,7 +79,6 @@ export const createReservation = async (req: Request, res: Response): Promise<vo
                 tableNumber: String(tableNumber || "1"),
                 status: "CONFIRMED",
                 statusDisplay: "Confirmed",
-                reservedFor: reservedFor ? new Date(reservedFor) : new Date(),
                 specialNotes: specialNotes || "",
                 isFeaturedUpcoming: true,
             },
