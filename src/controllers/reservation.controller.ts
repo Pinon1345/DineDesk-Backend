@@ -1,10 +1,27 @@
 import { Request, Response } from "express";
 import { prisma } from "../config/db.js";
+import jwt from "jsonwebtoken";
 
 // Get all customer reservations
 export const getCustomerReservations = async (req: Request, res: Response): Promise<void> => {
     try {
-        const userId = (req as any).user?.id || (req as any).user?.userId;
+        let userId = (req as any).user?.id || (req as any).user?.userId;
+
+        // Fallback: Safely decode token from Authorization header or cookies if middleware didn't attach user
+        if (!userId) {
+            const authHeader = req.headers.authorization;
+            const token = (authHeader && authHeader.split(" ")[1]) || (req as any).cookies?.token || (req as any).cookies?.accessToken;
+
+            if (token) {
+                try {
+                    const decoded: any = jwt.verify(token, process.env.JWT_SECRET || "super secret jwt key change this");
+                    userId = decoded.id || decoded.userId;
+                } catch (err) {
+                    // Token verification failed or expired
+                }
+            }
+        }
+
         if (!userId) {
             res.status(401).json({ success: false, message: "Unauthorized" });
             return;
@@ -21,7 +38,7 @@ export const getCustomerReservations = async (req: Request, res: Response): Prom
     }
 };
 
-// Create a new reservation
+// Create a new reservation (Fully preserved to guarantee successful posting)
 export const createReservation = async (req: Request, res: Response): Promise<void> => {
     try {
         const userId = (req as any).user?.id || (req as any).user?.userId;
