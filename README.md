@@ -15,7 +15,7 @@
 [![License](https://img.shields.io/badge/License-Proprietary-red)](#-license)
 
 <p align="center">
-  🌐 <strong>Frontend Live Link:</strong> <a href="https://dine-desk-one.vercel.app/">https://dine-desk-one.vercel.app/</a>
+  🌐 <strong>Frontend Live Link:</strong> <a href="https://dine-desk-one.vercel.app/">https://dine-desk-one.vercel.app</a>
 </p>
 <p align="center">
   🌐 <strong>Backend Live Link:</strong> <a href="https://dine-desk-backend.vercel.app">https://dine-desk-backend.vercel.app</a>
