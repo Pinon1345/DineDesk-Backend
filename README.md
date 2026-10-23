@@ -15,6 +15,7 @@
 [![License](https://img.shields.io/badge/License-Proprietary-red)](#-license)
 
 🌐 **Frontend Live Link:** [https://dine-desk-one.vercel.app/](https://dine-desk-one.vercel.app)
+---
 🌐 **Backend Live Link:** [https://dine-desk-backend.vercel.app](https://dine-desk-backend.vercel.app)
 
 *Built by [DevCore Solutions](#-about-devcore-solutions), building the digital core for modern businesses.*
