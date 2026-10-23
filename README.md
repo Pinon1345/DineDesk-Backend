@@ -14,7 +14,8 @@
 [![Vercel](https://img.shields.io/badge/Deployed%20on-Vercel-000000?logo=vercel&logoColor=white)](https://vercel.com/)
 [![License](https://img.shields.io/badge/License-Proprietary-red)](#-license)
 
-🌐 **Live API:** [https://dine-desk-backend.vercel.app](https://dine-desk-backend.vercel.app)
+🌐 **Frontend Live Link:** [https://dine-desk-one.vercel.app/](https://dine-desk-one.vercel.app)
+🌐 **Backend Live Link:** [https://dine-desk-backend.vercel.app](https://dine-desk-backend.vercel.app)
 
 *Built by [DevCore Solutions](#-about-devcore-solutions), building the digital core for modern businesses.*
 
