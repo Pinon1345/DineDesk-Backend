@@ -284,6 +284,18 @@ The backend runs as a serverless function on Vercel.
 | Emails not sending | Use a Gmail **App Password** (not your account password) for `SMTP_PASS`. |
 
 ---
+### 🔑 Demo Credentials
+
+| Role | Email | Password |
+|---|---|---|
+| 🍜 Customer | `diner@dinedesk.com` | `DinerPassword123!` |
+| 👨‍🍳 Vendor | `owner@dinedesk.com` | `OwnerPassword123!` |
+| 🛡️ Admin | `admin@dinedesk.com` | `AdminSecurePassword123!` |
+| 👑 Super Admin | `superadmin@dinedesk.com` | `SuperSecurePassword123!` |
+
+> 💳 **Stripe test card:** `4242 4242 4242 4242` · any future expiry · any CVC · any ZIP
+
+---
 
 ## 🔒 Security
 
