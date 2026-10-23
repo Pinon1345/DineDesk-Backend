@@ -14,10 +14,14 @@
 [![Vercel](https://img.shields.io/badge/Deployed%20on-Vercel-000000?logo=vercel&logoColor=white)](https://vercel.com/)
 [![License](https://img.shields.io/badge/License-Proprietary-red)](#-license)
 
-🌐 **Frontend Live Link:** [https://dine-desk-one.vercel.app/](https://dine-desk-one.vercel.app) |
-🌐 **Backend Live Link:** [https://dine-desk-backend.vercel.app](https://dine-desk-backend.vercel.app)
+<p align="center">
+  🌐 <strong>Frontend Live Link:</strong> <a href="https://dine-desk-one.vercel.app/">https://dine-desk-one.vercel.app/</a>
+</p>
+<p align="center">
+  🌐 <strong>Backend Live Link:</strong> <a href="https://dine-desk-backend.vercel.app">https://dine-desk-backend.vercel.app</a>
+</p>
 
-*Built by [DevCore Solutions](#-about-devcore-solutions), building the digital core for modern businesses.*
+_Built by [DevCore Solutions](#-about-devcore-solutions), building the digital core for modern businesses._
 
 </div>
 
@@ -61,17 +65,17 @@ The backend powers:
 
 ## ✨ Key Features
 
-| Area | Capabilities |
-| --- | --- |
+| Area                  | Capabilities                                                                                                 |
+| --------------------- | ------------------------------------------------------------------------------------------------------------ |
 | 🔐 **Authentication** | Dual-layer security with Firebase Admin SDK and JWT, HTTP-only cookies, and role-based access control (RBAC) |
-| 🏪 **Restaurants** | Listings, profile management, and discovery |
-| 📋 **Menus** | Item management, categories, and pricing |
-| 📅 **Bookings** | Table reservations and order tracking |
-| 💳 **Payments** | Stripe checkout sessions, customer billing, listing fees, and webhook handling |
-| 🖼️ **Media** | Secure image and asset uploads to Cloudinary via custom Multer middleware |
-| 🤖 **AI** | Gemini-powered dish recommendations, description generation, and smart customer insights |
-| 📧 **Notifications** | Transactional emails, verification, and alerts through Nodemailer |
-| 🛡️ **Reliability** | Global error handling, structured request validation, and strict type checking |
+| 🏪 **Restaurants**    | Listings, profile management, and discovery                                                                  |
+| 📋 **Menus**          | Item management, categories, and pricing                                                                     |
+| 📅 **Bookings**       | Table reservations and order tracking                                                                        |
+| 💳 **Payments**       | Stripe checkout sessions, customer billing, listing fees, and webhook handling                               |
+| 🖼️ **Media**          | Secure image and asset uploads to Cloudinary via custom Multer middleware                                    |
+| 🤖 **AI**             | Gemini-powered dish recommendations, description generation, and smart customer insights                     |
+| 📧 **Notifications**  | Transactional emails, verification, and alerts through Nodemailer                                            |
+| 🛡️ **Reliability**    | Global error handling, structured request validation, and strict type checking                               |
 
 ---
 
@@ -95,35 +99,35 @@ The backend follows a **modular, type-safe architecture**: routes → controller
 
 ## 🧰 Tech Stack
 
-| Layer | Technology |
-| --- | --- |
-| **Runtime** | Node.js (v18+) |
-| **Framework** | Express.js with TypeScript |
-| **Database** | PostgreSQL (Neon Serverless) |
-| **ORM** | Prisma ORM (type-safe queries and migrations) |
+| Layer              | Technology                                                     |
+| ------------------ | -------------------------------------------------------------- |
+| **Runtime**        | Node.js (v18+)                                                 |
+| **Framework**      | Express.js with TypeScript                                     |
+| **Database**       | PostgreSQL (Neon Serverless)                                   |
+| **ORM**            | Prisma ORM (type-safe queries and migrations)                  |
 | **Authentication** | Firebase Admin SDK + JSON Web Tokens (HTTP-only cookies), RBAC |
-| **Payments** | Stripe API |
-| **Media** | Cloudinary + Multer |
-| **AI** | Google Gemini API (`gemini-1.5-flash`) |
-| **Email** | Nodemailer (SMTP with Gmail App Passwords) |
-| **Hosting** | Vercel (Serverless Functions) |
+| **Payments**       | Stripe API                                                     |
+| **Media**          | Cloudinary + Multer                                            |
+| **AI**             | Google Gemini API (`gemini-1.5-flash`)                         |
+| **Email**          | Nodemailer (SMTP with Gmail App Passwords)                     |
+| **Hosting**        | Vercel (Serverless Functions)                                  |
 
 ---
 
 ## 📦 Core Libraries
 
-| Package | Purpose |
-| --- | --- |
-| `express` | Fast, minimalist web framework for RESTful APIs |
-| `prisma` & `@prisma/client` | Next-gen ORM for type-safe database access |
-| `firebase-admin` | Server-side Firebase SDK for identity management |
-| `stripe` | Official Stripe library for transactions and webhooks |
-| `cloudinary` | Cloud storage and dynamic image manipulation |
-| `@google/genai` | Official Google Generative AI SDK for Gemini |
-| `nodemailer` | Secure email delivery |
-| `bcryptjs` | Password hashing |
-| `jsonwebtoken` | Stateless session handling with JWT |
-| `cors`, `dotenv`, `cookie-parser` | Security and utility middleware |
+| Package                           | Purpose                                               |
+| --------------------------------- | ----------------------------------------------------- |
+| `express`                         | Fast, minimalist web framework for RESTful APIs       |
+| `prisma` & `@prisma/client`       | Next-gen ORM for type-safe database access            |
+| `firebase-admin`                  | Server-side Firebase SDK for identity management      |
+| `stripe`                          | Official Stripe library for transactions and webhooks |
+| `cloudinary`                      | Cloud storage and dynamic image manipulation          |
+| `@google/genai`                   | Official Google Generative AI SDK for Gemini          |
+| `nodemailer`                      | Secure email delivery                                 |
+| `bcryptjs`                        | Password hashing                                      |
+| `jsonwebtoken`                    | Stateless session handling with JWT                   |
+| `cors`, `dotenv`, `cookie-parser` | Security and utility middleware                       |
 
 ---
 
@@ -143,14 +147,14 @@ All AI calls are authenticated **server-side** with environment-protected API cr
 
 The API follows RESTful principles under the `/api/v1` namespace.
 
-| Route | Description |
-| --- | --- |
-| `/api/v1/auth` | User registration, login, token refresh, and session logout |
-| `/api/v1/restaurants` | Restaurant listings, profile management, and discovery |
-| `/api/v1/menus` | Item management, categories, and pricing |
-| `/api/v1/bookings` | Table reservations and order tracking |
-| `/api/v1/payments` | Stripe checkout sessions and webhook listeners |
-| `/api/v1/ai` | Gemini-powered recommendation and content generation |
+| Route                 | Description                                                 |
+| --------------------- | ----------------------------------------------------------- |
+| `/api/v1/auth`        | User registration, login, token refresh, and session logout |
+| `/api/v1/restaurants` | Restaurant listings, profile management, and discovery      |
+| `/api/v1/menus`       | Item management, categories, and pricing                    |
+| `/api/v1/bookings`    | Table reservations and order tracking                       |
+| `/api/v1/payments`    | Stripe checkout sessions and webhook listeners              |
+| `/api/v1/ai`          | Gemini-powered recommendation and content generation        |
 
 ---
 
@@ -264,6 +268,7 @@ The backend runs as a serverless function on Vercel.
    ```
 
    Keep `prisma` (the CLI) in `dependencies` so it is available during Vercel's install step.
+
 4. Deploy. For production database changes, run migrations with:
 
    ```bash
@@ -276,22 +281,23 @@ The backend runs as a serverless function on Vercel.
 
 ## 🛠️ Troubleshooting
 
-| Problem | Solution |
-| --- | --- |
+| Problem                                                                       | Solution                                                                                                                                              |
+| ----------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `500 FUNCTION_INVOCATION_FAILED` with `@prisma/client did not initialize yet` | Prisma client was not generated during the build. Add `"postinstall": "prisma generate"` to your scripts, then redeploy with the build cache cleared. |
-| Database connection errors | Confirm `DATABASE_URL` is set in Vercel and includes `?sslmode=require` for Neon. |
-| Stripe webhook signature failures | Check that `STRIPE_WEBHOOK_SECRET` matches the endpoint you configured in the Stripe dashboard. |
-| Firebase private key errors | Keep the `\n` line breaks in `FIREBASE_PRIVATE_KEY` and wrap the value in double quotes. |
-| Emails not sending | Use a Gmail **App Password** (not your account password) for `SMTP_PASS`. |
+| Database connection errors                                                    | Confirm `DATABASE_URL` is set in Vercel and includes `?sslmode=require` for Neon.                                                                     |
+| Stripe webhook signature failures                                             | Check that `STRIPE_WEBHOOK_SECRET` matches the endpoint you configured in the Stripe dashboard.                                                       |
+| Firebase private key errors                                                   | Keep the `\n` line breaks in `FIREBASE_PRIVATE_KEY` and wrap the value in double quotes.                                                              |
+| Emails not sending                                                            | Use a Gmail **App Password** (not your account password) for `SMTP_PASS`.                                                                             |
 
 ---
+
 ### 🔑 Demo Credentials
 
-| Role | Email | Password |
-|---|---|---|
-| 🍜 Customer | `diner@dinedesk.com` | `DinerPassword123!` |
-| 👨‍🍳 Vendor | `owner@dinedesk.com` | `OwnerPassword123!` |
-| 🛡️ Admin | `admin@dinedesk.com` | `AdminSecurePassword123!` |
+| Role           | Email                     | Password                  |
+| -------------- | ------------------------- | ------------------------- |
+| 🍜 Customer    | `diner@dinedesk.com`      | `DinerPassword123!`       |
+| 👨‍🍳 Vendor      | `owner@dinedesk.com`      | `OwnerPassword123!`       |
+| 🛡️ Admin       | `admin@dinedesk.com`      | `AdminSecurePassword123!` |
 | 👑 Super Admin | `superadmin@dinedesk.com` | `SuperSecurePassword123!` |
 
 > 💳 **Stripe test card:** `4242 4242 4242 4242` · any future expiry · any CVC · any ZIP
@@ -342,7 +348,7 @@ DineDesk was built from the ground up by the two founders of **DevCore Solutions
 
 **DevCore Solutions** is a technology startup founded by two passionate software developers, dedicated to crafting scalable, high-performance web applications and digital solutions.
 
-> *Building the digital core for modern businesses.*
+> _Building the digital core for modern businesses._
 
 ---
 
