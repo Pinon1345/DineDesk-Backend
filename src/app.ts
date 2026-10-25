@@ -20,10 +20,30 @@ const app = express();
 // Security & Parsing Middlewares
 
 app.use(helmet());
-app.use(cors({
-    origin: process.env.FRONTEND_URL || 'http://localhost:3000',
-    credentials: true,
-}));
+
+const allowedOrigins = [
+    process.env.FRONTEND_URL,
+    "https://dine-desk-one.vercel.app",
+    "http://localhost:3000",
+    "http://localhost:3001",
+].filter(Boolean) as string[];
+
+app.use(
+    cors({
+        origin: (origin, callback) => {
+
+            // Allow requests with no origin (e.g. mobile apps, curl, server-to-server)
+
+            if (!origin || allowedOrigins.includes(origin)) {
+                callback(null, true);
+            } else {
+                callback(new Error("Not allowed by CORS"));
+            }
+        },
+        credentials: true,
+    })
+);
+
 app.use(morgan('dev'));
 app.use(express.json());
 app.use(cookieParser());
