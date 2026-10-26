@@ -2,8 +2,9 @@
 import { Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import { env } from '../config/env.js';
 import { prisma } from '../config/db.js';
+import { env } from '../config/env.js';
+import { sendWelcomeEmail } from '../services/email.service.js';
 
 // Helper to generate JWT token
 const generateToken = (user: { id: string; email: string; role: any }, rememberMe: boolean) => {
@@ -37,6 +38,16 @@ export const register = async (req: Request, res: Response): Promise<void> => {
                 role: role || 'USER',
             },
         });
+
+        // Trigger Welcome Email and log execution status directly
+        try {
+            await sendWelcomeEmail({
+                toEmail: user.email,
+                userName: user.name || 'Diner',
+            });
+        } catch (mailError) {
+            console.error('❌ Failed to dispatch welcome email during registration:', mailError);
+        }
 
         res.status(201).json({
             success: true,
@@ -94,7 +105,7 @@ export const login = async (req: Request, res: Response): Promise<void> => {
             .status(200).json({
                 success: true,
                 message: 'Login successful',
-                token, // Sent back so frontend can store in localStorage/cookies if needed
+                token,
                 data: {
                     id: user.id,
                     name: user.name,

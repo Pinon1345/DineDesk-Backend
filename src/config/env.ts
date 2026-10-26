@@ -28,6 +28,11 @@ const envSchema = z.object({
     SUPERADMIN_PASSWORD: z.string().min(8),
     ADMIN_EMAIL: z.string().email(),
     ADMIN_PASSWORD: z.string().min(8),
+
+    // Mailgun Variables
+    MAILGUN_API_KEY: z.string().optional(),
+    MAILGUN_DOMAIN: z.string().optional(),
+    MAILGUN_FROM: z.string().optional(),
 });
 
 const parsedEnv = envSchema.safeParse(process.env);
