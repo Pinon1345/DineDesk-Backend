@@ -4,7 +4,7 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { prisma } from '../config/db.js';
 import { env } from '../config/env.js';
-import { sendWelcomeEmail } from '../services/email.service.js';
+import { sendWelcomeEmail, sendSignInEmail } from '../services/email.service.js';
 
 // Helper to generate JWT token
 const generateToken = (user: { id: string; email: string; role: any }, rememberMe: boolean) => {
@@ -94,6 +94,21 @@ export const login = async (req: Request, res: Response): Promise<void> => {
 
         // Set cookie options
         const cookieMaxAge = rememberMe ? 30 * 24 * 60 * 60 * 1000 : 7 * 24 * 60 * 60 * 1000;
+
+        // Extract telemetry for security notification
+        const rawIp = (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress || '127.0.0.1';
+        const ipAddress = rawIp.split(',')[0]?.trim() || '127.0.0.1';
+        const userAgent = (req.headers['user-agent'] as string) || 'Web Browser';
+
+        // Trigger Sign-in notification asynchronously without blocking response
+        sendSignInEmail({
+            toEmail: user.email,
+            userName: user.name || 'Diner',
+            ipAddress,
+            userAgent,
+        }).catch((err) => {
+            console.error('❌ Failed to dispatch sign-in email:', err);
+        });
 
         res
             .cookie('token', token, {
