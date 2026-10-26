@@ -1,7 +1,7 @@
 import nodemailer from "nodemailer";
 import { env } from "../config/env.js";
 
-// Initialize Gmail SMTP Transporter with your .env credentials
+// Initialize Gmail SMTP Transporter
 const transporter = nodemailer.createTransport({
     host: env.SMTP_HOST || process.env.SMTP_HOST || "smtp.gmail.com",
     port: Number(env.SMTP_PORT || process.env.SMTP_PORT || 587),
@@ -21,7 +21,8 @@ export const sendWelcomeEmail = async ({ toEmail, userName }: WelcomeEmailParams
     const senderEmail = env.SMTP_USER || process.env.SMTP_USER || "pinonfurkan1@gmail.com";
     const firstName = userName ? userName.trim().split(" ")[0] : "Connoisseur";
     const fullName = userName ? userName.trim() : "Valued Member";
-    const frontendUrl = env.FRONTEND_URL || process.env.FRONTEND_URL || "https://dine-desk-one.vercel.app";
+    const frontendUrl = (env.FRONTEND_URL || process.env.FRONTEND_URL || "https://dine-desk-one.vercel.app").replace(/\/$/, "");
+    const logoUrl = `${frontendUrl}/icon.png`;
 
     // Generate unique luxury member card serial based on timestamp & email
     const patronId = `DD-${Buffer.from(toEmail).toString("hex").slice(0, 6).toUpperCase()}-${new Date().getFullYear()}`;
@@ -40,30 +41,64 @@ export const sendWelcomeEmail = async ({ toEmail, userName }: WelcomeEmailParams
   <meta name="color-scheme" content="light dark" />
   <meta name="supported-color-schemes" content="light dark" />
   <title>Welcome to DineDesk</title>
+  <style type="text/css">
+    :root {
+      color-scheme: light dark;
+      supported-color-schemes: light dark;
+    }
+    @media (prefers-color-scheme: dark) {
+      .patron-card-container {
+        background-color: #142c1f !important;
+        background: #142c1f !important;
+      }
+      .patron-text-white {
+        color: #ffffff !important;
+        -webkit-text-fill-color: #ffffff !important;
+      }
+      .patron-text-gold {
+        color: #e5b869 !important;
+        -webkit-text-fill-color: #e5b869 !important;
+      }
+      .patron-text-muted {
+        color: #c2d6cc !important;
+        -webkit-text-fill-color: #c2d6cc !important;
+      }
+    }
+  </style>
 </head>
 <body style="margin: 0; padding: 0; background-color: #f3f4f1; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; -webkit-font-smoothing: antialiased; color: #1b3b2b;">
-  <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: #f3f4f1; padding: 35px 12px 60px 12px;">
+  <table width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#f3f4f1" style="background-color: #f3f4f1; padding: 35px 12px 60px 12px;">
     <tr>
       <td align="center">
-        <!-- Main Card Container -->
-        <table width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width: 620px; background-color: #ffffff; border-radius: 28px; overflow: hidden; border: 1px solid rgba(27, 59, 43, 0.1); box-shadow: 0 16px 45px rgba(27, 59, 43, 0.08);">
+        <!-- Main Container -->
+        <table width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#ffffff" style="max-width: 620px; background-color: #ffffff; border-radius: 28px; overflow: hidden; border: 1px solid rgba(27, 59, 43, 0.1); box-shadow: 0 16px 45px rgba(27, 59, 43, 0.08);">
           
-          <!-- Top Accent Ribbon -->
+          <!-- Top Accent Line -->
           <tr>
-            <td style="background: linear-gradient(90deg, #1b3b2b 0%, #2b5540 50%, #c05621 100%); height: 6px; line-height: 6px; font-size: 6px;">&nbsp;</td>
+            <td bgcolor="#1b3b2b" style="background: linear-gradient(90deg, #1b3b2b 0%, #2b5540 50%, #c05621 100%); height: 6px; line-height: 6px; font-size: 6px;">&nbsp;</td>
           </tr>
 
-          <!-- Brand Header -->
+          <!-- Brand Header with DineDesk Logo from /icon.png -->
           <tr>
-            <td style="background-color: #1b3b2b; padding: 44px 36px 36px 36px; text-align: center;">
-              <table width="100%" cellpadding="0" cellspacing="0" border="0">
+            <td bgcolor="#1b3b2b" style="background-color: #1b3b2b; padding: 38px 36px 34px 36px; text-align: center;">
+              <table cellpadding="0" cellspacing="0" border="0" align="center" style="margin: 0 auto;">
                 <tr>
-                  <td align="center">
-                    <span style="display: inline-block; font-family: Georgia, 'Times New Roman', serif; font-size: 32px; font-weight: 900; letter-spacing: 2px; color: #ffffff; text-decoration: none;">
-                      DineDesk
+                  <td valign="middle" style="padding-right: 14px;">
+                    <!-- Hosted Logo Image -->
+                    <img 
+                      src="${logoUrl}" 
+                      alt="DineDesk Logo" 
+                      width="46" 
+                      height="46" 
+                      style="display: block; width: 46px; height: 46px; border-radius: 12px; border: 0; outline: none; object-fit: contain;" 
+                    />
+                  </td>
+                  <td valign="middle" align="left">
+                    <span style="font-family: Georgia, 'Times New Roman', serif; font-size: 30px; font-weight: 900; letter-spacing: 1.5px; color: #fffefc; text-decoration: none; line-height: 1; display: block;">
+                      <font color="#ffffff">DineDesk</font>
                     </span>
-                    <span style="display: block; font-size: 11px; text-transform: uppercase; letter-spacing: 3.5px; color: #e1b168; margin-top: 6px; font-weight: 700;">
-                      Haute Hospitality &amp; Private Tables
+                    <span style="font-family: -apple-system, BlinkMacSystemFont, sans-serif; font-size: 10px; text-transform: uppercase; letter-spacing: 3px; color: #e5b869; margin-top: 5px; font-weight: 700; display: block;">
+                      <font color="#e5b869">Haute Hospitality &bull; Private Tables</font>
                     </span>
                   </td>
                 </tr>
@@ -74,9 +109,15 @@ export const sendWelcomeEmail = async ({ toEmail, userName }: WelcomeEmailParams
           <!-- Welcome Banner & Intro -->
           <tr>
             <td style="padding: 40px 40px 24px 40px; background-color: #ffffff;">
-              <span style="display: inline-block; background-color: rgba(192, 86, 33, 0.1); border: 1px solid rgba(192, 86, 33, 0.25); color: #c05621; font-size: 10px; font-weight: 800; letter-spacing: 1.6px; text-transform: uppercase; padding: 5px 14px; border-radius: 30px; margin-bottom: 16px;">
-                Membership Provisioned
-              </span>
+              <table cellpadding="0" cellspacing="0" border="0" style="margin-bottom: 16px;">
+                <tr>
+                  <td bgcolor="#fbeee7" style="background-color: #fbeee7; border: 1px solid rgba(192, 86, 33, 0.35); padding: 5px 14px; border-radius: 30px;">
+                    <font color="#c05621" style="font-size: 10px; font-weight: 800; letter-spacing: 1.6px; text-transform: uppercase;">
+                      MEMBERSHIP PROVISIONED
+                    </font>
+                  </td>
+                </tr>
+              </table>
               <h1 style="margin: 0 0 16px 0; font-family: Georgia, 'Times New Roman', serif; font-size: 26px; line-height: 1.3; color: #1b3b2b; font-weight: 800;">
                 A warm welcome to the family, ${firstName}.
               </h1>
@@ -86,35 +127,42 @@ export const sendWelcomeEmail = async ({ toEmail, userName }: WelcomeEmailParams
             </td>
           </tr>
 
-          <!-- Luxury Virtual Membership Card -->
+          <!-- Luxury Virtual Membership Card (Dark Mode Hardened) -->
           <tr>
             <td style="padding: 0 40px 30px 40px;">
-              <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background: linear-gradient(135deg, #14281e 0%, #1b3b2b 60%, #173224 100%); border-radius: 20px; border: 1px solid rgba(225, 177, 104, 0.4); box-shadow: 0 12px 28px rgba(0,0,0,0.22); color: #ffffff;">
+              <table class="patron-card-container" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#142c1f" style="background-color: #142c1f !important; border-radius: 20px; border: 1px solid #c99e55; box-shadow: 0 14px 32px rgba(0,0,0,0.35);">
                 <tr>
-                  <td style="padding: 28px 28px 22px 28px;">
+                  <td bgcolor="#142c1f" style="padding: 28px 28px 22px 28px; background-color: #142c1f !important;">
+                    
                     <!-- Card Top Row -->
                     <table width="100%" cellpadding="0" cellspacing="0" border="0">
                       <tr>
                         <td align="left" valign="top">
-                          <span style="font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: #e1b168; font-weight: 800; display: block;">
-                            Patron Credentials
+                          <span class="patron-text-gold" style="font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: #e5b869; font-weight: 800; display: block; -webkit-text-fill-color: #e5b869 !important;">
+                            <font color="#e5b869">PATRON CREDENTIALS</font>
                           </span>
-                          <span style="font-family: Georgia, serif; font-size: 19px; color: #ffffff; font-weight: 700; margin-top: 3px; display: block;">
-                            ${fullName}
+                          <span class="patron-text-white" style="font-family: Georgia, serif; font-size: 22px; color: #ffffff !important; font-weight: 800; margin-top: 4px; display: block; -webkit-text-fill-color: #ffffff !important; text-shadow: 0 1px 3px rgba(0,0,0,0.85);">
+                            <font color="#ffffff">${fullName}</font>
                           </span>
                         </td>
                         <td align="right" valign="top">
-                          <span style="display: inline-block; padding: 4px 10px; background: rgba(225, 177, 104, 0.18); border: 1px solid #e1b168; border-radius: 8px; font-size: 10px; font-weight: 800; letter-spacing: 1.2px; color: #e1b168; text-transform: uppercase;">
-                            Founding Member
-                          </span>
+                          <table cellpadding="0" cellspacing="0" border="0" bgcolor="#213d2f" style="border: 1px solid #e5b869; border-radius: 8px;">
+                            <tr>
+                              <td style="padding: 5px 12px;">
+                                <span class="patron-text-gold" style="font-size: 10px; font-weight: 800; letter-spacing: 1.2px; color: #e5b869; text-transform: uppercase; white-space: nowrap; -webkit-text-fill-color: #e5b869 !important;">
+                                  <font color="#e5b869">FOUNDING MEMBER</font>
+                                </span>
+                              </td>
+                            </tr>
+                          </table>
                         </td>
                       </tr>
                     </table>
 
                     <!-- Divider Line on Card -->
-                    <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin: 22px 0 16px 0;">
+                    <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin: 22px 0 18px 0;">
                       <tr>
-                        <td style="border-top: 1px dashed rgba(225, 177, 104, 0.3); height: 1px;">&nbsp;</td>
+                        <td style="border-top: 1px dashed rgba(229, 184, 105, 0.45); height: 1px; font-size: 1px; line-height: 1px;">&nbsp;</td>
                       </tr>
                     </table>
 
@@ -122,23 +170,24 @@ export const sendWelcomeEmail = async ({ toEmail, userName }: WelcomeEmailParams
                     <table width="100%" cellpadding="0" cellspacing="0" border="0">
                       <tr>
                         <td align="left" valign="bottom">
-                          <span style="font-size: 9px; text-transform: uppercase; letter-spacing: 1.5px; color: rgba(255, 255, 255, 0.55); display: block;">
-                            Member Serial
+                          <span class="patron-text-muted" style="font-size: 9px; text-transform: uppercase; letter-spacing: 1.6px; color: #c2d6cc; display: block; font-weight: 700; -webkit-text-fill-color: #c2d6cc !important;">
+                            <font color="#c2d6cc">MEMBER SERIAL</font>
                           </span>
-                          <span style="font-family: 'Courier New', Courier, monospace; font-size: 12px; font-weight: 700; color: #ffffff; letter-spacing: 1px;">
-                            ${patronId}
+                          <span class="patron-text-white" style="font-family: 'Courier New', Courier, monospace; font-size: 13px; font-weight: 800; color: #ffffff !important; letter-spacing: 1.2px; margin-top: 4px; display: block; -webkit-text-fill-color: #ffffff !important; text-shadow: 0 1px 3px rgba(0,0,0,0.85);">
+                            <font color="#ffffff">${patronId}</font>
                           </span>
                         </td>
                         <td align="right" valign="bottom">
-                          <span style="font-size: 9px; text-transform: uppercase; letter-spacing: 1.5px; color: rgba(255, 255, 255, 0.55); display: block;">
-                            Authorized Date
+                          <span class="patron-text-muted" style="font-size: 9px; text-transform: uppercase; letter-spacing: 1.6px; color: #c2d6cc; display: block; font-weight: 700; -webkit-text-fill-color: #c2d6cc !important;">
+                            <font color="#c2d6cc">AUTHORIZED DATE</font>
                           </span>
-                          <span style="font-size: 12px; font-weight: 600; color: #ffffff;">
-                            ${issuedDate}
+                          <span class="patron-text-white" style="font-family: -apple-system, BlinkMacSystemFont, sans-serif; font-size: 13px; font-weight: 700; color: #ffffff !important; margin-top: 4px; display: block; -webkit-text-fill-color: #ffffff !important; text-shadow: 0 1px 3px rgba(0,0,0,0.85);">
+                            <font color="#ffffff">${issuedDate}</font>
                           </span>
                         </td>
                       </tr>
                     </table>
+
                   </td>
                 </tr>
               </table>
@@ -148,7 +197,7 @@ export const sendWelcomeEmail = async ({ toEmail, userName }: WelcomeEmailParams
           <!-- Key Privileges Section -->
           <tr>
             <td style="padding: 0 40px 30px 40px;">
-              <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: #f8f9f6; border-radius: 18px; border: 1px solid rgba(27, 59, 43, 0.08); padding: 24px;">
+              <table width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#f8f9f6" style="background-color: #f8f9f6; border-radius: 18px; border: 1px solid rgba(27, 59, 43, 0.08); padding: 24px;">
                 <tr>
                   <td>
                     <span style="font-size: 11px; text-transform: uppercase; letter-spacing: 1.8px; font-weight: 800; color: #c05621; display: block; margin-bottom: 14px;">
@@ -208,8 +257,8 @@ export const sendWelcomeEmail = async ({ toEmail, userName }: WelcomeEmailParams
               <table cellpadding="0" cellspacing="0" border="0">
                 <tr>
                   <td align="center" style="background-color: #1b3b2b; border-radius: 14px; box-shadow: 0 8px 22px rgba(27, 59, 43, 0.28);">
-                    <a href="${frontendUrl}/dashboard/customer" target="_blank" style="display: inline-block; padding: 16px 42px; font-size: 13px; font-weight: 800; color: #ffffff; text-decoration: none; text-transform: uppercase; letter-spacing: 1.5px; border-radius: 14px;">
-                      Enter Patron Portal &rarr;
+                    <a href="${frontendUrl}/dashboard/customer" target="_blank" style="display: inline-block; padding: 16px 42px; font-size: 13px; font-weight: 800; color: #ffffff !important; text-decoration: none; text-transform: uppercase; letter-spacing: 1.5px; border-radius: 14px;">
+                      <font color="#ffffff">Enter Patron Portal &rarr;</font>
                     </a>
                   </td>
                 </tr>
@@ -222,7 +271,7 @@ export const sendWelcomeEmail = async ({ toEmail, userName }: WelcomeEmailParams
 
           <!-- Footer Section -->
           <tr>
-            <td style="background-color: #f8f9f6; border-top: 1px solid rgba(27, 59, 43, 0.08); padding: 30px 40px; text-align: center;">
+            <td bgcolor="#f8f9f6" style="background-color: #f8f9f6; border-top: 1px solid rgba(27, 59, 43, 0.08); padding: 30px 40px; text-align: center;">
               <p style="margin: 0 0 8px 0; font-size: 12px; font-weight: 700; color: #1b3b2b;">
                 DineDesk Hospitality Group
               </p>
@@ -250,7 +299,7 @@ export const sendWelcomeEmail = async ({ toEmail, userName }: WelcomeEmailParams
             to: toEmail,
             subject: `Welcome to the Family, ${firstName} ✨ Your DineDesk Patron Pass is Ready`,
             html: htmlTemplate,
-            text: `Hello ${firstName},\n\nWelcome to the DineDesk Family! Your patron credentials have been authorized.\n\nPatron ID: ${patronId}\nMembership Tier: Founding Member\n\nEnter your patron portal: ${frontendUrl}/dashboard/customer\n\n© ${new Date().getFullYear()} DineDesk Hospitality Group`,
+            text: `Hello ${firstName},\n\nWelcome to DineDesk! Your patron credentials have been authorized.\nPatron ID: ${patronId}\nAccess your dashboard: ${frontendUrl}/dashboard/customer`,
         });
 
         console.log(`✅ [Gmail SMTP] Premium welcome email sent to ${toEmail} (ID: ${info.messageId})`);
