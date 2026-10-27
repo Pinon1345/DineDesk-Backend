@@ -1,12 +1,11 @@
+// src/controllers/user.controller.ts
 import { Request, Response } from "express";
-import { PrismaClient } from "@prisma/client";
-
-const prisma = new PrismaClient();
+import { prisma } from "../config/db.js";
 
 // 1. GET User Profile from PostgreSQL
 export const getUserProfile = async (req: Request, res: Response): Promise<void> => {
     try {
-        const userId = (req as any).user?.id; // Attached by your authenticate middleware
+        const userId = (req as any).user?.id;
         if (!userId) {
             res.status(401).json({ success: false, message: "Unauthorized: No user ID found" });
             return;
@@ -16,12 +15,15 @@ export const getUserProfile = async (req: Request, res: Response): Promise<void>
             where: { id: userId },
             select: {
                 id: true,
-                name: true, // Map to fullName on frontend if needed
+                name: true,
                 email: true,
                 phone: true,
                 avatarUrl: true,
                 language: true,
                 dietaryPreferences: true,
+                loyaltyPoints: true,
+                role: true,
+                createdAt: true,
             },
         });
 
@@ -30,7 +32,6 @@ export const getUserProfile = async (req: Request, res: Response): Promise<void>
             return;
         }
 
-        // Map Prisma 'name' to frontend 'fullName' property expected by TypeScript types
         res.status(200).json({
             success: true,
             user: {
@@ -39,11 +40,12 @@ export const getUserProfile = async (req: Request, res: Response): Promise<void>
             },
         });
     } catch (error: any) {
-        res.status(500).json({ success: false, message: error.message });
+        console.error("Get user profile error:", error);
+        res.status(500).json({ success: false, message: error.message || "Internal server error" });
     }
 };
 
-// 2. PUT Update User Profile in PostgreSQL
+// 2. PUT / PATCH Update User Profile in PostgreSQL
 export const updateUserProfile = async (req: Request, res: Response): Promise<void> => {
     try {
         const userId = (req as any).user?.id;
@@ -52,18 +54,49 @@ export const updateUserProfile = async (req: Request, res: Response): Promise<vo
             return;
         }
 
-        const { fullName, email, phone, avatarUrl, language, dietaryPreferences } = req.body;
+        const {
+            name,
+            fullName,
+            phone,
+            avatarUrl,
+            language,
+            dietaryPreferences,
+        } = req.body;
 
-        // Update the exact user record in PostgreSQL via Prisma
+        const resolvedName = (fullName || name || "").trim();
+
+        // Build selective update object so existing fields aren't wiped with undefined/null
+        const updateData: Record<string, any> = {};
+
+        if (resolvedName) {
+            updateData.name = resolvedName;
+        }
+        if (phone !== undefined) {
+            updateData.phone = phone ? String(phone).trim() : null;
+        }
+        if (avatarUrl !== undefined) {
+            updateData.avatarUrl = avatarUrl;
+        }
+        if (language) {
+            updateData.language = language;
+        }
+        if (Array.isArray(dietaryPreferences)) {
+            updateData.dietaryPreferences = dietaryPreferences;
+        }
+
         const updatedUser = await prisma.user.update({
             where: { id: userId },
-            data: {
-                name: fullName, // Stored in the 'name' column of your User model
-                email,
-                phone,
-                avatarUrl,
-                language,
-                dietaryPreferences,
+            data: updateData,
+            select: {
+                id: true,
+                name: true,
+                email: true,
+                phone: true,
+                avatarUrl: true,
+                language: true,
+                dietaryPreferences: true,
+                loyaltyPoints: true,
+                role: true,
             },
         });
 
@@ -76,6 +109,7 @@ export const updateUserProfile = async (req: Request, res: Response): Promise<vo
             },
         });
     } catch (error: any) {
-        res.status(500).json({ success: false, message: error.message });
+        console.error("Update profile error:", error);
+        res.status(500).json({ success: false, message: error.message || "Failed to update profile" });
     }
 };
