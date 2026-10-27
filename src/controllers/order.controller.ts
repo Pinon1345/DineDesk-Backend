@@ -6,7 +6,7 @@ import { env } from '../config/env.js';
 
 const stripe = new Stripe(env.STRIPE_SECRET_KEY || 'sk_test_dummy');
 
-// Place a new order
+// Place a new order with atomic +20 loyalty points addition
 export const createOrder = async (req: Request, res: Response): Promise<void> => {
     try {
         if (!req.user) {
@@ -14,20 +14,36 @@ export const createOrder = async (req: Request, res: Response): Promise<void> =>
             return;
         }
 
-        const { orderType, paymentMethod, deliveryAddress, deliveryLat, deliveryLng, couponCode, items: clientItems } = req.body;
+        const {
+            orderType,
+            paymentMethod,
+            deliveryAddress,
+            deliveryLat,
+            deliveryLng,
+            couponCode,
+            items: clientItems,
+        } = req.body;
 
-        let cartItems: Array<{ menuItemId?: string; name: string; price: any; quantity: number; restaurantId?: string }> = [];
+        let cartItems: Array<{
+            menuItemId?: string;
+            name: string;
+            price: any;
+            quantity: number;
+            restaurantId?: string;
+        }> = [];
 
         // 1. If items are sent directly from frontend cart, use them
         if (clientItems && clientItems.length > 0) {
             for (const item of clientItems) {
-                const dbMenu = await prisma.menuItem.findUnique({
-                    where: { id: item.id || item.menuItemId }
-                }).catch(() => null);
+                const dbMenu = await prisma.menuItem
+                    .findUnique({
+                        where: { id: item.id || item.menuItemId },
+                    })
+                    .catch(() => null);
 
                 cartItems.push({
                     menuItemId: dbMenu ? dbMenu.id : undefined,
-                    name: item.name || dbMenu?.name || "Menu Item",
+                    name: item.name || dbMenu?.name || 'Menu Item',
                     price: dbMenu ? Number(dbMenu.price) : Number(item.price || 0),
                     quantity: Number(item.quantity || 1),
                     restaurantId: dbMenu?.restaurantId || item.restaurantId,
@@ -39,7 +55,7 @@ export const createOrder = async (req: Request, res: Response): Promise<void> =>
                 include: { menuItem: true },
             });
 
-            cartItems = dbCart.map(ci => ({
+            cartItems = dbCart.map((ci) => ({
                 menuItemId: ci.menuItemId,
                 name: ci.menuItem.name,
                 price: Number(ci.menuItem.price),
@@ -53,14 +69,17 @@ export const createOrder = async (req: Request, res: Response): Promise<void> =>
             return;
         }
 
-        // 2. Fallback: If restaurantId is missing, grab the first available restaurant from DB automatically
-        let restaurantId = cartItems.find(i => i.restaurantId)?.restaurantId;
+        // 2. Fallback: If restaurantId is missing, grab the first available restaurant
+        let restaurantId = cartItems.find((i) => i.restaurantId)?.restaurantId;
         if (!restaurantId) {
             const fallbackRestaurant = await prisma.restaurant.findFirst({ select: { id: true } });
             if (fallbackRestaurant) {
                 restaurantId = fallbackRestaurant.id;
             } else {
-                res.status(400).json({ success: false, message: 'Invalid cart item configuration: Restaurant not found' });
+                res.status(400).json({
+                    success: false,
+                    message: 'Invalid cart item configuration: Restaurant not found',
+                });
                 return;
             }
         }
@@ -97,37 +116,50 @@ export const createOrder = async (req: Request, res: Response): Promise<void> =>
             }
         }
 
-        const deliveryFee = orderType === 'DELIVERY' ? 5.00 : 0.00;
+        const deliveryFee = orderType === 'DELIVERY' ? 5.0 : 0.0;
         const total = subtotal - discount + deliveryFee;
+        const pointsToAward = 20;
 
-        // 6. Create Order in Database with items
-        const order = await prisma.order.create({
-            data: {
-                userId: req.user.id,
-                restaurantId,
-                orderType: orderType || 'DELIVERY',
-                paymentMethod: paymentMethod || 'STRIPE',
-                paymentStatus: 'UNPAID',
-                subtotal,
-                discount,
-                deliveryFee,
-                total,
-                commissionAmount,
-                couponId: appliedCouponId,
-                deliveryAddress: deliveryAddress || 'Standard Address',
-                deliveryLat,
-                deliveryLng,
-                items: {
-                    create: cartItems.map((ci) => ({
-                        menuItemId: ci.menuItemId,
-                        name: ci.name,
-                        price: ci.price,
-                        quantity: ci.quantity,
-                    })),
+        // 6. Execute atomic transaction: Create Order + Add Loyalty Points + Clear Cart
+        const [order, updatedUser] = await prisma.$transaction([
+            prisma.order.create({
+                data: {
+                    userId: req.user.id,
+                    restaurantId,
+                    orderType: orderType || 'DELIVERY',
+                    paymentMethod: paymentMethod || 'STRIPE',
+                    paymentStatus: 'UNPAID',
+                    subtotal,
+                    discount,
+                    deliveryFee,
+                    total,
+                    commissionAmount,
+                    pointsEarned: pointsToAward,
+                    couponId: appliedCouponId,
+                    deliveryAddress: deliveryAddress || 'Standard Address',
+                    deliveryLat,
+                    deliveryLng,
+                    items: {
+                        create: cartItems.map((ci) => ({
+                            menuItemId: ci.menuItemId,
+                            name: ci.name,
+                            price: ci.price,
+                            quantity: ci.quantity,
+                        })),
+                    },
                 },
-            },
-            include: { items: true },
-        });
+                include: { items: true, restaurant: { select: { id: true, name: true, coverUrl: true } } },
+            }),
+            prisma.user.update({
+                where: { id: req.user.id },
+                data: {
+                    loyaltyPoints: {
+                        increment: pointsToAward,
+                    },
+                },
+                select: { id: true, loyaltyPoints: true },
+            }),
+        ]);
 
         // 7. Clear User Cart
         await prisma.cartItem.deleteMany({ where: { userId: req.user.id } }).catch(() => { });
@@ -164,6 +196,7 @@ export const createOrder = async (req: Request, res: Response): Promise<void> =>
             data: {
                 order,
                 stripeSessionUrl,
+                loyaltyPoints: updatedUser.loyaltyPoints,
             },
         });
     } catch (error: any) {
@@ -196,7 +229,7 @@ export const getMyOrders = async (req: Request, res: Response): Promise<void> =>
     }
 };
 
-// Cancel a user order
+// Cancel a user order with atomic -20 loyalty points rollback
 export const cancelOrder = async (req: Request, res: Response): Promise<void> => {
     try {
         if (!req.user) {
@@ -215,25 +248,53 @@ export const cancelOrder = async (req: Request, res: Response): Promise<void> =>
             return;
         }
 
-        // Only allow cancellation if order is still PENDING or ACCEPTED
-        if (order.status !== 'PENDING' && order.status !== 'ACCEPTED') {
+        // Prevent double cancellation
+        if (order.status === 'CANCELLED') {
             res.status(400).json({
                 success: false,
-                message: 'Order cannot be cancelled because it is already being prepared or completed.'
+                message: 'This order is already cancelled.',
             });
             return;
         }
 
-        const updatedOrder = await prisma.order.update({
-            where: { id },
-            data: { status: 'CANCELLED' },
-            include: { items: true, restaurant: { select: { id: true, name: true, coverUrl: true } } },
+        // Only allow cancellation if order is still PENDING or ACCEPTED
+        if (order.status !== 'PENDING' && order.status !== 'ACCEPTED') {
+            res.status(400).json({
+                success: false,
+                message: 'Order cannot be cancelled because it is already being prepared or completed.',
+            });
+            return;
+        }
+
+        const pointsToDeduct = order.pointsEarned > 0 ? order.pointsEarned : 20;
+
+        // Current user points to ensure balance never drops below 0
+        const currentUser = await prisma.user.findUnique({
+            where: { id: req.user.id },
+            select: { loyaltyPoints: true },
         });
+        const currentPoints = currentUser?.loyaltyPoints || 0;
+        const newLoyaltyPoints = Math.max(0, currentPoints - pointsToDeduct);
+
+        // Atomic rollback transaction: mark CANCELLED and deduct points
+        const [updatedOrder, updatedUser] = await prisma.$transaction([
+            prisma.order.update({
+                where: { id },
+                data: { status: 'CANCELLED' },
+                include: { items: true, restaurant: { select: { id: true, name: true, coverUrl: true } } },
+            }),
+            prisma.user.update({
+                where: { id: req.user.id },
+                data: { loyaltyPoints: newLoyaltyPoints },
+                select: { id: true, loyaltyPoints: true },
+            }),
+        ]);
 
         res.status(200).json({
             success: true,
             message: 'Order cancelled successfully',
             data: updatedOrder,
+            loyaltyPoints: updatedUser.loyaltyPoints,
         });
     } catch (error) {
         console.error('Cancel order error:', error);

@@ -10,7 +10,19 @@ export const createReservation = async (req: Request, res: Response): Promise<vo
             return;
         }
 
-        const { restaurantId, reservedFor, partySize, note } = req.body;
+        const {
+            restaurantId,
+            reservedFor,
+            date,
+            displayDate,
+            time,
+            mealPeriod,
+            partySize,
+            seatingArea,
+            tableNumber,
+            note,
+            specialNotes,
+        } = req.body;
 
         const restaurant = await prisma.restaurant.findUnique({ where: { id: restaurantId } });
         if (!restaurant) {
@@ -18,14 +30,30 @@ export const createReservation = async (req: Request, res: Response): Promise<vo
             return;
         }
 
+        // Format dates and times safely from reservedFor or direct inputs
+        const targetDate = date || (reservedFor ? new Date(reservedFor).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]);
+        const targetDisplayDate = displayDate || targetDate;
+        const targetTime = time || (reservedFor ? new Date(reservedFor).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "7:00 PM");
+
         const reservation = await prisma.reservation.create({
             data: {
                 userId: req.user.id,
                 restaurantId,
-                reservedFor: new Date(reservedFor),
-                partySize,
-                note,
-                status: 'PENDING',
+                restaurantName: restaurant.name,
+                restaurantImage: restaurant.coverUrl || null,
+                neighborhood: restaurant.address || "Downtown",
+                fullAddress: restaurant.address || "",
+                cuisine: restaurant.cuisine || "Fine Dining",
+                date: targetDate,
+                displayDate: targetDisplayDate,
+                time: targetTime,
+                mealPeriod: mealPeriod || "Dinner",
+                partySize: Number(partySize || 2),
+                seatingArea: seatingArea || "Standard Seating",
+                tableNumber: tableNumber ? String(tableNumber) : "1",
+                specialNotes: specialNotes || note || null,
+                status: 'CONFIRMED',
+                statusDisplay: 'Confirmed',
             },
         });
 
@@ -51,7 +79,7 @@ export const getMyReservations = async (req: Request, res: Response): Promise<vo
         const reservations = await prisma.reservation.findMany({
             where: { userId: req.user.id },
             include: { restaurant: { select: { id: true, name: true, address: true, coverUrl: true } } },
-            orderBy: { reservedFor: 'desc' },
+            orderBy: { createdAt: 'desc' },
         });
 
         res.status(200).json({ success: true, data: reservations });
@@ -90,7 +118,7 @@ export const createReview = async (req: Request, res: Response): Promise<void> =
             data: {
                 userId: req.user.id,
                 restaurantId,
-                rating,
+                rating: Number(rating),
                 comment,
             },
         });
@@ -98,7 +126,7 @@ export const createReview = async (req: Request, res: Response): Promise<void> =
         // Recalculate restaurant average rating
         const reviews = await prisma.review.findMany({ where: { restaurantId } });
         const reviewCount = reviews.length;
-        const avgRating = reviews.reduce((acc, curr) => acc + curr.rating, 0) / reviewCount;
+        const avgRating = reviewCount > 0 ? reviews.reduce((acc, curr) => acc + curr.rating, 0) / reviewCount : 0;
 
         await prisma.restaurant.update({
             where: { id: restaurantId },
