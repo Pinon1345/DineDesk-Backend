@@ -18,3 +18,16 @@ export const loginSchema = z.object({
         rememberMe: z.boolean().optional().default(false),
     }),
 });
+
+export const updateUserProfileSchema = z.object({
+    body: z.object({
+        name: z.string().min(1, 'Name cannot be empty').optional(),
+        fullName: z.string().min(1, 'Name cannot be empty').optional(),
+        email: z.string().email('Invalid email address').optional(),
+        phone: z.string().nullable().optional(),
+        avatarUrl: z.string().nullable().optional(),
+        image: z.string().nullable().optional(),
+        language: z.string().optional(),
+        dietaryPreferences: z.array(z.string()).optional(),
+    }),
+});

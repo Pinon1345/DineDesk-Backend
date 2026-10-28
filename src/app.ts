@@ -14,6 +14,7 @@ import adminRoutes from './routes/admin.routes.js';
 import webhookRoutes from './routes/webhook.routes.js';
 import userRoutes from './routes/user.routes.js';
 import reservationRoutes from './routes/reservation.routes.js';
+import favoriteRoutes from "./routes/favorite.routes.js";
 const app = express();
 
 
@@ -45,7 +46,8 @@ app.use(
 );
 
 app.use(morgan('dev'));
-app.use(express.json());
+app.use(express.json({ limit: "25mb" }));
+app.use(express.urlencoded({ limit: "25mb", extended: true }));
 app.use(cookieParser());
 
 
@@ -94,6 +96,10 @@ app.use('/api/v1/users', userRoutes);
 // Tenthly, mount the reservation routes after the user routes
 
 app.use('/api/v1/reservations', reservationRoutes);
+
+// mount the favorite routes after the user routes
+
+app.use("/api/v1/favorites", favoriteRoutes);
 
 
 
