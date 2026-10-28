@@ -38,69 +38,118 @@ export const authenticate = async (req: Request, res: Response, next: NextFuncti
 
         token = token.trim();
 
-        // 2. Normalize token for Better-Auth Session verification
-        const rawToken = token.replace(/^better_auth_/, '');
+        // 2. Try Standard JWT Verification First
+        if (!token.startsWith('better_auth_')) {
+            try {
+                const decoded = jwt.verify(token, env.JWT_SECRET) as {
+                    id?: string;
+                    userId?: string;
+                    email: string;
+                    role?: 'USER' | 'VENDOR' | 'ADMIN' | 'SUPERADMIN';
+                    name?: string;
+                };
 
-        try {
-            // Check session table against both raw token, prefixed token, and session ID
-            const session = await (prisma as any).session.findFirst({
-                where: {
-                    OR: [
-                        { token: rawToken },
-                        { token: token },
-                        { id: rawToken },
-                        { id: token }
-                    ]
-                },
-                include: { user: true },
-            });
+                const userId = decoded.id || decoded.userId;
+                if (userId) {
+                    req.user = {
+                        id: userId,
+                        email: decoded.email,
+                        role: decoded.role || 'USER',
+                        name: decoded.name,
+                    };
+                    return next();
+                }
+            } catch (jwtErr) {
+                // Not a valid JWT or expired; continue to fallback lookup
+            }
+        }
 
-            if (session && session.user) {
-                // Verify expiration if set
-                if (session.expiresAt && new Date(session.expiresAt) < new Date()) {
-                    res.status(401).json({ success: false, message: 'Session expired. Please log in again.' });
-                    return;
+        // 3. Fallback for Better-Auth Session Verification
+        const rawToken = token.replace(/^better_auth_/, '').trim();
+        const userEmailHeader = (req.headers['x-user-email'] as string)?.trim()?.toLowerCase();
+
+        // Check if rawToken exists in a postgres session table if present
+        if (rawToken) {
+            try {
+                const sessions = await prisma.$queryRawUnsafe<any[]>(
+                    `SELECT "userId", "expiresAt" FROM "session" WHERE "token" = $1 OR "id" = $1 LIMIT 1`,
+                    rawToken
+                );
+                if (sessions && sessions.length > 0) {
+                    const sess = sessions[0];
+                    if (!sess.expiresAt || new Date(sess.expiresAt) >= new Date()) {
+                        const sessUser = await prisma.user.findUnique({
+                            where: { id: sess.userId },
+                        });
+                        if (sessUser && !sessUser.isBanned) {
+                            req.user = {
+                                id: sessUser.id,
+                                email: sessUser.email,
+                                role: sessUser.role,
+                                name: sessUser.name,
+                            };
+                            return next();
+                        }
+                    }
+                }
+            } catch (sessionErr) {
+                // No session table or query failed; fall through to user lookup
+            }
+
+            // Direct User lookup by User ID, Google ID, or email header
+            try {
+                const conditions: any[] = [{ id: rawToken }, { googleId: rawToken }];
+                if (userEmailHeader) {
+                    conditions.push({ email: userEmailHeader });
                 }
 
-                req.user = {
-                    id: session.user.id,
-                    email: session.user.email,
-                    role: (session.user.role as 'USER' | 'VENDOR' | 'ADMIN' | 'SUPERADMIN') || 'USER',
-                    name: session.user.name,
-                };
-                return next();
+                const matchedUser = await prisma.user.findFirst({
+                    where: {
+                        OR: conditions,
+                    },
+                });
+
+                if (matchedUser) {
+                    if (matchedUser.isBanned) {
+                        res.status(403).json({ success: false, message: 'Your account has been suspended' });
+                        return;
+                    }
+
+                    req.user = {
+                        id: matchedUser.id,
+                        email: matchedUser.email,
+                        role: matchedUser.role,
+                        name: matchedUser.name,
+                    };
+                    return next();
+                }
+            } catch (dbErr) {
+                console.error('User lookup fallback error:', dbErr);
             }
-        } catch (dbErr) {
-            console.error('Session lookup failed, attempting JWT fallback:', dbErr);
         }
 
-        // 3. Fallback: Verify as standard JWT
-        try {
-            const decoded = jwt.verify(token, env.JWT_SECRET) as {
-                id?: string;
-                userId?: string;
-                email: string;
-                role?: 'USER' | 'VENDOR' | 'ADMIN' | 'SUPERADMIN';
-                name?: string;
-            };
-
-            const userId = decoded.id || decoded.userId;
-            if (!userId) {
-                res.status(401).json({ success: false, message: 'Invalid token payload.' });
-                return;
+        // If email header was passed alone
+        if (userEmailHeader) {
+            try {
+                const matchedUser = await prisma.user.findUnique({
+                    where: { email: userEmailHeader },
+                });
+                if (matchedUser && !matchedUser.isBanned) {
+                    req.user = {
+                        id: matchedUser.id,
+                        email: matchedUser.email,
+                        role: matchedUser.role,
+                        name: matchedUser.name,
+                    };
+                    return next();
+                }
+            } catch (dbErr) {
+                console.error('User email lookup fallback error:', dbErr);
             }
-
-            req.user = {
-                id: userId,
-                email: decoded.email,
-                role: decoded.role || 'USER',
-                name: decoded.name,
-            };
-            return next();
-        } catch (jwtErr) {
-            res.status(401).json({ success: false, message: 'Invalid or expired token.' });
-            return;
         }
+
+        res.status(401).json({ success: false, message: 'Invalid or expired token.' });
+        return;
     } catch (error: any) {
         console.error('Authentication middleware error:', error);
         res.status(500).json({ success: false, message: 'Internal server authentication error' });

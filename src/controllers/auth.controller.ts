@@ -177,3 +177,121 @@ export const getMe = async (req: Request, res: Response): Promise<void> => {
         res.status(500).json({ success: false, message: 'Internal server error' });
     }
 };
+
+// Google OAuth / Social Login
+export const googleLogin = async (req: Request, res: Response): Promise<void> => {
+    try {
+        const bodyData = req.body && req.body.body ? req.body.body : req.body;
+        const { email, name, googleId, avatarUrl, image } = bodyData || {};
+
+        if (!email || typeof email !== 'string' || !email.includes('@')) {
+            res.status(400).json({ success: false, message: 'Valid email is required for Google login' });
+            return;
+        }
+
+        const normalizedEmail = email.trim().toLowerCase();
+        const incomingName = (name && String(name).trim()) || normalizedEmail.split('@')[0] || 'Diner';
+        const incomingAvatar =
+            (typeof avatarUrl === 'string' && avatarUrl.trim()) ||
+            (typeof image === 'string' && image.trim()) ||
+            null;
+
+        // Find existing user by email or googleId
+        let user = await prisma.user.findFirst({
+            where: {
+                OR: [
+                    { email: normalizedEmail },
+                    ...(googleId ? [{ googleId: String(googleId) }] : []),
+                ],
+            },
+        });
+
+        if (user) {
+            if (user.isBanned) {
+                res.status(403).json({ success: false, message: 'Your account has been suspended' });
+                return;
+            }
+
+            // Sync missing fields
+            const updateFields: Record<string, any> = {};
+            if (googleId && !user.googleId) {
+                updateFields.googleId = String(googleId);
+            }
+            if (incomingAvatar && !user.avatarUrl) {
+                updateFields.avatarUrl = incomingAvatar;
+            }
+            if ((!user.name || user.name === 'Diner' || user.name.trim() === '') && incomingName) {
+                updateFields.name = incomingName;
+            }
+
+            if (Object.keys(updateFields).length > 0) {
+                user = await prisma.user.update({
+                    where: { id: user.id },
+                    data: updateFields,
+                });
+            }
+        } else {
+            // Create new Google user
+            user = await prisma.user.create({
+                data: {
+                    name: incomingName,
+                    email: normalizedEmail,
+                    googleId: googleId ? String(googleId) : undefined,
+                    avatarUrl: incomingAvatar || undefined,
+                    role: 'USER',
+                },
+            });
+
+            // Dispatch welcome email asynchronously
+            sendWelcomeEmail({
+                toEmail: user.email,
+                userName: user.name || 'Diner',
+            }).catch((mailError) => {
+                console.error('Failed to send welcome email for Google user:', mailError);
+            });
+        }
+
+        // Generate JWT token (30 days validity for seamless user experience)
+        const token = generateToken(user, true);
+
+        // Telemetry sign-in email
+        const rawIp = (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress || '127.0.0.1';
+        const ipAddress = rawIp.split(',')[0]?.trim() || '127.0.0.1';
+        const userAgent = (req.headers['user-agent'] as string) || 'Google Web Client';
+
+        sendSignInEmail({
+            toEmail: user.email,
+            userName: user.name || 'Diner',
+            ipAddress,
+            userAgent,
+        }).catch((err) => {
+            console.error('Failed to dispatch sign-in email:', err);
+        });
+
+        res
+            .cookie('token', token, {
+                httpOnly: true,
+                secure: env.COOKIE_SECURE,
+                sameSite: 'lax',
+                maxAge: 30 * 24 * 60 * 60 * 1000,
+            })
+            .status(200)
+            .json({
+                success: true,
+                message: 'Google login successful',
+                token,
+                data: {
+                    id: user.id,
+                    name: user.name,
+                    email: user.email,
+                    role: user.role,
+                    avatarUrl: user.avatarUrl,
+                    loyaltyPoints: user.loyaltyPoints,
+                    phone: user.phone,
+                },
+            });
+    } catch (error) {
+        console.error('Google login error:', error);
+        res.status(500).json({ success: false, message: 'Internal server error during Google login' });
+    }
+};
