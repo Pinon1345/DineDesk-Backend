@@ -3,43 +3,56 @@ import { env } from "../config/env.js";
 
 // Initialize Gmail SMTP Transporter
 const transporter = nodemailer.createTransport({
-    host: env.SMTP_HOST || process.env.SMTP_HOST || "smtp.gmail.com",
-    port: Number(env.SMTP_PORT || process.env.SMTP_PORT || 587),
-    secure: false, // TLS via port 587
-    auth: {
-        user: env.SMTP_USER || process.env.SMTP_USER,
-        pass: (env.SMTP_PASS || process.env.SMTP_PASS || "").replace(/\s+/g, ""),
-    },
+  host: env.SMTP_HOST || process.env.SMTP_HOST || "smtp.gmail.com",
+  port: Number(env.SMTP_PORT || process.env.SMTP_PORT || 587),
+  secure: false, // TLS via port 587
+  auth: {
+    user: env.SMTP_USER || process.env.SMTP_USER,
+    pass: (env.SMTP_PASS || process.env.SMTP_PASS || "").replace(/\s+/g, ""),
+  },
 });
 
-interface WelcomeEmailParams {
-    toEmail: string;
-    userName: string;
+export interface WelcomeEmailParams {
+  toEmail: string;
+  userName?: string;
+  name?: string;
+  firstName?: string;
 }
 
-interface SignInEmailParams {
-    toEmail: string;
-    userName: string;
-    ipAddress?: string;
-    userAgent?: string;
+export interface SignInEmailParams {
+  toEmail: string;
+  userName?: string;
+  name?: string;
+  firstName?: string;
+  loginDate?: string;
+  loginTime?: string;
+  device?: string;
+  ipAddress?: string;
+  userAgent?: string;
 }
 
-export const sendWelcomeEmail = async ({ toEmail, userName }: WelcomeEmailParams) => {
-    const senderEmail = env.SMTP_USER || process.env.SMTP_USER || "pinonfurkan1@gmail.com";
-    const firstName = userName ? userName.trim().split(" ")[0] : "Connoisseur";
-    const fullName = userName ? userName.trim() : "Valued Member";
-    const frontendUrl = (env.FRONTEND_URL || process.env.FRONTEND_URL || "https://dine-desk-one.vercel.app").replace(/\/$/, "");
-    const logoUrl = `${frontendUrl}/icon.png`;
+export const sendWelcomeEmail = async ({
+  toEmail,
+  userName,
+  name,
+  firstName: paramFirstName,
+}: WelcomeEmailParams) => {
+  const senderEmail = env.SMTP_USER || process.env.SMTP_USER || "pinonfurkan1@gmail.com";
+  const resolvedName = (userName || name || paramFirstName || "Connoisseur").trim();
+  const firstName = resolvedName.split(" ")[0] || "Connoisseur";
+  const fullName = resolvedName || "Valued Member";
+  const frontendUrl = (env.FRONTEND_URL || process.env.FRONTEND_URL || "https://dine-desk-one.vercel.app").replace(/\/$/, "");
+  const logoUrl = `${frontendUrl}/icon.png`;
 
-    // Generate unique luxury member card serial based on timestamp & email
-    const patronId = `DD-${Buffer.from(toEmail).toString("hex").slice(0, 6).toUpperCase()}-${new Date().getFullYear()}`;
-    const issuedDate = new Date().toLocaleDateString("en-US", {
-        month: "short",
-        day: "numeric",
-        year: "numeric",
-    });
+  // Generate unique luxury member card serial based on timestamp & email
+  const patronId = `DD-${Buffer.from(toEmail).toString("hex").slice(0, 6).toUpperCase()}-${new Date().getFullYear()}`;
+  const issuedDate = new Date().toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
 
-    const htmlTemplate = `
+  const htmlTemplate = `
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
 <html xmlns="http://www.w3.org/1999/xhtml">
 <head>
@@ -53,94 +66,39 @@ export const sendWelcomeEmail = async ({ toEmail, userName }: WelcomeEmailParams
       color-scheme: light dark;
       supported-color-schemes: light dark;
     }
-    
     @keyframes cardShimmer {
       0% { box-shadow: 0 10px 30px rgba(0,0,0,0.3), inset 0 0 0 1px rgba(201, 158, 85, 0.4); }
       50% { box-shadow: 0 14px 40px rgba(229, 184, 105, 0.25), inset 0 0 0 1px rgba(229, 184, 105, 0.8); }
       100% { box-shadow: 0 10px 30px rgba(0,0,0,0.3), inset 0 0 0 1px rgba(201, 158, 85, 0.4); }
     }
-    
     @keyframes shimmerGold {
       0% { opacity: 0.85; }
       50% { opacity: 1; transform: scale(1.02); }
       100% { opacity: 0.85; }
     }
-
-    .animated-card {
-      animation: cardShimmer 5s ease-in-out infinite;
-    }
-
-    .animated-badge {
-      animation: shimmerGold 3.5s ease-in-out infinite;
-      display: inline-block;
-    }
-
+    .animated-card { animation: cardShimmer 5s ease-in-out infinite; }
+    .animated-badge { animation: shimmerGold 3.5s ease-in-out infinite; display: inline-block; }
     .cta-btn:hover {
       background-color: #244b37 !important;
       transform: translateY(-2px);
       box-shadow: 0 12px 28px rgba(27, 59, 43, 0.35) !important;
     }
-
-    /* Mobile Viewport Reflow */
     @media only screen and (max-width: 580px) {
-      .responsive-table {
-        width: 100% !important;
-      }
-      .mobile-padding {
-        padding: 24px 18px !important;
-      }
-      .card-padding {
-        padding: 20px 18px !important;
-      }
-      .mobile-stack {
-        display: block !important;
-        width: 100% !important;
-        text-align: left !important;
-      }
-      .mobile-badge-container {
-        display: block !important;
-        width: 100% !important;
-        text-align: left !important;
-        margin-top: 14px !important;
-      }
-      .mobile-bottom-col {
-        display: block !important;
-        width: 100% !important;
-        text-align: left !important;
-      }
-      .mobile-bottom-col-right {
-        display: block !important;
-        width: 100% !important;
-        text-align: left !important;
-        margin-top: 12px !important;
-      }
-      .mobile-header-logo {
-        width: 54px !important;
-        height: 54px !important;
-      }
-      .mobile-brand-title {
-        font-size: 26px !important;
-      }
+      .responsive-table { width: 100% !important; }
+      .mobile-padding { padding: 24px 18px !important; }
+      .card-padding { padding: 20px 18px !important; }
+      .mobile-stack { display: block !important; width: 100% !important; text-align: left !important; }
+      .mobile-badge-container { display: block !important; width: 100% !important; text-align: left !important; margin-top: 14px !important; }
+      .mobile-bottom-col { display: block !important; width: 100% !important; text-align: left !important; }
+      .mobile-bottom-col-right { display: block !important; width: 100% !important; text-align: left !important; margin-top: 12px !important; }
+      .mobile-header-logo { width: 54px !important; height: 54px !important; }
+      .mobile-brand-title { font-size: 26px !important; }
     }
-
-    /* Dark Mode Text Inversion Prevention */
     @media (prefers-color-scheme: dark) {
-      .patron-card-container {
-        background-color: #142c1f !important;
-        background: #142c1f !important;
-      }
-      .patron-text-white {
-        color: #ffffff !important;
-        -webkit-text-fill-color: #ffffff !important;
-      }
-      .patron-text-gold {
-        color: #e5b869 !important;
-        -webkit-text-fill-color: #e5b869 !important;
-      }
-      .patron-text-muted {
-        color: #c2d6cc !important;
-        -webkit-text-fill-color: #c2d6cc !important;
-      }
+      .patron-card-container { background-color: #142c1f !important; background: #142c1f !important; }
+      .patron-text-white { color: #ffffff !important; -webkit-text-fill-color: #ffffff !important; }
+      .patron-text-gold { color: #e5b869 !important; -webkit-text-fill-color: #e5b869 !important; }
+      .patron-text-muted { color: #c2d6cc !important; -webkit-text-fill-color: #c2d6cc !important; }
     }
   </style>
 </head>
@@ -148,15 +106,10 @@ export const sendWelcomeEmail = async ({ toEmail, userName }: WelcomeEmailParams
   <table width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#f3f4f1" style="background-color: #f3f4f1; padding: 25px 8px 50px 8px;">
     <tr>
       <td align="center">
-        <!-- Main Card Wrapper -->
         <table class="responsive-table" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#ffffff" style="max-width: 620px; background-color: #ffffff; border-radius: 28px; overflow: hidden; border: 1px solid rgba(27, 59, 43, 0.1); box-shadow: 0 16px 45px rgba(27, 59, 43, 0.08);">
-          
-          <!-- Top Accent Ribbon -->
           <tr>
             <td bgcolor="#1b3b2b" style="background: linear-gradient(90deg, #1b3b2b 0%, #2b5540 50%, #c05621 100%); height: 6px; line-height: 6px; font-size: 6px;">&nbsp;</td>
           </tr>
-
-          <!-- Brand Header: Centered Large Logo + Title Below -->
           <tr>
             <td bgcolor="#1b3b2b" style="background-color: #1b3b2b; padding: 46px 20px 38px 20px; text-align: center;">
               <table cellpadding="0" cellspacing="0" border="0" align="center" style="margin: 0 auto;">
@@ -185,8 +138,6 @@ export const sendWelcomeEmail = async ({ toEmail, userName }: WelcomeEmailParams
               </table>
             </td>
           </tr>
-
-          <!-- Welcome Banner & Intro -->
           <tr>
             <td class="mobile-padding" style="padding: 40px 40px 24px 40px; background-color: #ffffff;">
               <table cellpadding="0" cellspacing="0" border="0" style="margin-bottom: 16px;">
@@ -206,15 +157,11 @@ export const sendWelcomeEmail = async ({ toEmail, userName }: WelcomeEmailParams
               </p>
             </td>
           </tr>
-
-          <!-- Luxury Virtual Membership Card -->
           <tr>
             <td style="padding: 0 24px 30px 24px;">
               <table class="patron-card-container animated-card" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#142c1f" style="background-color: #142c1f !important; border-radius: 20px; border: 1px solid #c99e55; box-shadow: 0 14px 32px rgba(0,0,0,0.35); overflow: hidden;">
                 <tr>
                   <td class="card-padding" bgcolor="#142c1f" style="padding: 28px; background-color: #142c1f !important;">
-                    
-                    <!-- Card Top Row -->
                     <table width="100%" cellpadding="0" cellspacing="0" border="0">
                       <tr>
                         <td class="mobile-stack" align="left" valign="top">
@@ -240,15 +187,11 @@ export const sendWelcomeEmail = async ({ toEmail, userName }: WelcomeEmailParams
                         </td>
                       </tr>
                     </table>
-
-                    <!-- Dashed Divider -->
                     <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin: 22px 0 18px 0;">
                       <tr>
                         <td style="border-top: 1px dashed rgba(229, 184, 105, 0.45); height: 1px; font-size: 1px; line-height: 1px;">&nbsp;</td>
                       </tr>
                     </table>
-
-                    <!-- Card Bottom Details -->
                     <table width="100%" cellpadding="0" cellspacing="0" border="0">
                       <tr>
                         <td class="mobile-bottom-col" align="left" valign="bottom">
@@ -269,14 +212,11 @@ export const sendWelcomeEmail = async ({ toEmail, userName }: WelcomeEmailParams
                         </td>
                       </tr>
                     </table>
-
                   </td>
                 </tr>
               </table>
             </td>
           </tr>
-
-          <!-- Key Privileges Section -->
           <tr>
             <td style="padding: 0 24px 30px 24px;">
               <table width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#f8f9f6" style="background-color: #f8f9f6; border-radius: 18px; border: 1px solid rgba(27, 59, 43, 0.08); padding: 24px;">
@@ -326,8 +266,6 @@ export const sendWelcomeEmail = async ({ toEmail, userName }: WelcomeEmailParams
               </table>
             </td>
           </tr>
-
-          <!-- Primary CTA Button -->
           <tr>
             <td align="center" style="padding: 10px 24px 40px 24px;">
               <table cellpadding="0" cellspacing="0" border="0">
@@ -344,8 +282,6 @@ export const sendWelcomeEmail = async ({ toEmail, userName }: WelcomeEmailParams
               </span>
             </td>
           </tr>
-
-          <!-- Footer Section -->
           <tr>
             <td bgcolor="#f8f9f6" style="background-color: #f8f9f6; border-top: 1px solid rgba(27, 59, 43, 0.08); padding: 30px 24px; text-align: center;">
               <p style="margin: 0 0 8px 0; font-size: 12px; font-weight: 700; color: #1b3b2b;">
@@ -360,7 +296,6 @@ export const sendWelcomeEmail = async ({ toEmail, userName }: WelcomeEmailParams
               </p>
             </td>
           </tr>
-
         </table>
       </td>
     </tr>
@@ -369,54 +304,63 @@ export const sendWelcomeEmail = async ({ toEmail, userName }: WelcomeEmailParams
 </html>
   `;
 
-    try {
-        const info = await transporter.sendMail({
-            from: `"DineDesk Concierge" <${senderEmail}>`,
-            to: toEmail,
-            subject: `Welcome to the Family, ${firstName} ✨ Your DineDesk Patron Pass is Ready`,
-            html: htmlTemplate,
-            text: `Hello ${firstName},\n\nWelcome to DineDesk! Your patron credentials have been authorized.\nPatron ID: ${patronId}\nMembership Tier: Founding Member\n\nEnter your patron portal: ${frontendUrl}/dashboard/customer\n\n© ${new Date().getFullYear()} DineDesk Hospitality Group`,
-        });
+  try {
+    const info = await transporter.sendMail({
+      from: `"DineDesk Concierge" <${senderEmail}>`,
+      to: toEmail,
+      subject: `Welcome to the Family, ${firstName} ✨ Your DineDesk Patron Pass is Ready`,
+      html: htmlTemplate,
+      text: `Hello ${firstName},\n\nWelcome to DineDesk! Your patron credentials have been authorized.\nPatron ID: ${patronId}\nMembership Tier: Founding Member\n\nEnter your patron portal: ${frontendUrl}/dashboard/customer\n\n© ${new Date().getFullYear()} DineDesk Hospitality Group`,
+    });
 
-        console.log(`✅ [Gmail SMTP] Premium welcome email sent to ${toEmail} (ID: ${info.messageId})`);
-        return info;
-    } catch (error: any) {
-        console.error("❌ [Gmail SMTP] Failed to dispatch welcome email:", error?.message || error);
-    }
+    console.log(`✅ [Gmail SMTP] Premium welcome email sent to ${toEmail} (ID: ${info.messageId})`);
+    return info;
+  } catch (error: any) {
+    console.error("❌ [Gmail SMTP] Failed to dispatch welcome email:", error?.message || error);
+  }
 };
 
 export const sendSignInEmail = async ({
-    toEmail,
-    userName,
-    ipAddress = "127.0.0.1",
-    userAgent = "Web Browser",
+  toEmail,
+  userName,
+  name,
+  firstName: paramFirstName,
+  loginDate: customDate,
+  loginTime: customTime,
+  device: customDevice,
+  ipAddress = "127.0.0.1",
+  userAgent = "Web Browser",
 }: SignInEmailParams) => {
-    const senderEmail = env.SMTP_USER || process.env.SMTP_USER || "pinonfurkan1@gmail.com";
-    const firstName = userName ? userName.trim().split(" ")[0] : "Diner";
-    const frontendUrl = (env.FRONTEND_URL || process.env.FRONTEND_URL || "https://dine-desk-one.vercel.app").replace(/\/$/, "");
-    const logoUrl = `${frontendUrl}/icon.png`;
+  const senderEmail = env.SMTP_USER || process.env.SMTP_USER || "pinonfurkan1@gmail.com";
+  const resolvedName = (userName || name || paramFirstName || "Diner").trim();
+  const firstName = resolvedName.split(" ")[0] || "Diner";
+  const frontendUrl = (env.FRONTEND_URL || process.env.FRONTEND_URL || "https://dine-desk-one.vercel.app").replace(/\/$/, "");
+  const logoUrl = `${frontendUrl}/icon.png`;
 
-    const loginTime = new Date().toLocaleTimeString("en-US", {
-        hour: "2-digit",
-        minute: "2-digit",
-        second: "2-digit",
-        timeZoneName: "short",
-    });
-    const loginDate = new Date().toLocaleDateString("en-US", {
-        month: "short",
-        day: "numeric",
-        year: "numeric",
-    });
+  const loginTime = customTime || new Date().toLocaleTimeString("en-US", {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    timeZoneName: "short",
+  });
 
-    const device = userAgent.includes("Mobile")
-        ? "Mobile Device"
-        : userAgent.includes("Windows")
-            ? "Windows PC"
-            : userAgent.includes("Mac")
-                ? "Macintosh"
-                : "Web Session";
+  const loginDate = customDate || new Date().toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
 
-    const htmlTemplate = `
+  const device = customDevice || (
+    userAgent.includes("Mobile")
+      ? "Mobile Device"
+      : userAgent.includes("Windows")
+        ? "Windows PC"
+        : userAgent.includes("Mac")
+          ? "Macintosh"
+          : "Web Session"
+  );
+
+  const htmlTemplate = `
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
 <html xmlns="http://www.w3.org/1999/xhtml">
 <head>
@@ -437,13 +381,9 @@ export const sendSignInEmail = async ({
     <tr>
       <td align="center">
         <table class="responsive-table" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#ffffff" style="max-width: 620px; background-color: #ffffff; border-radius: 28px; overflow: hidden; border: 1px solid rgba(27, 59, 43, 0.1); box-shadow: 0 16px 45px rgba(27, 59, 43, 0.08);">
-          
-          <!-- Top Accent Ribbon -->
           <tr>
             <td bgcolor="#1b3b2b" style="background: linear-gradient(90deg, #1b3b2b 0%, #2b5540 50%, #c05621 100%); height: 6px; line-height: 6px; font-size: 6px;">&nbsp;</td>
           </tr>
-
-          <!-- Header -->
           <tr>
             <td bgcolor="#1b3b2b" style="background-color: #1b3b2b; padding: 40px 20px 32px 20px; text-align: center;">
               <table cellpadding="0" cellspacing="0" border="0" align="center" style="margin: 0 auto;">
@@ -465,8 +405,6 @@ export const sendSignInEmail = async ({
               </table>
             </td>
           </tr>
-
-          <!-- Body Content -->
           <tr>
             <td class="mobile-padding" style="padding: 36px 40px 24px 40px; background-color: #ffffff;">
               <table cellpadding="0" cellspacing="0" border="0" style="margin-bottom: 16px;">
@@ -478,15 +416,12 @@ export const sendSignInEmail = async ({
                   </td>
                 </tr>
               </table>
-
               <h1 style="margin: 0 0 14px 0; font-family: Georgia, serif; font-size: 24px; color: #1b3b2b; font-weight: 800;">
                 Welcome back, ${firstName}.
               </h1>
               <p style="margin: 0 0 24px 0; font-size: 14px; line-height: 1.6; color: rgba(27, 59, 43, 0.85);">
                 We detected a successful sign-in to your DineDesk Patron Account. Your session telemetry has been verified.
               </p>
-
-              <!-- Session Details Card -->
               <table width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#f8f9f6" style="background-color: #f8f9f6; border-radius: 18px; border: 1px solid rgba(27, 59, 43, 0.1); padding: 22px;">
                 <tr>
                   <td style="padding: 6px 0; font-size: 13px; color: rgba(27, 59, 43, 0.7);">
@@ -504,8 +439,6 @@ export const sendSignInEmail = async ({
                   </td>
                 </tr>
               </table>
-
-              <!-- CTA -->
               <table cellpadding="0" cellspacing="0" border="0" align="center" style="margin-top: 32px;">
                 <tr>
                   <td bgcolor="#1b3b2b" style="background-color: #1b3b2b; border-radius: 14px; box-shadow: 0 6px 20px rgba(27, 59, 43, 0.25);">
@@ -515,14 +448,11 @@ export const sendSignInEmail = async ({
                   </td>
                 </tr>
               </table>
-
               <p style="margin: 28px 0 0 0; font-size: 12px; line-height: 1.5; color: rgba(27, 59, 43, 0.55); text-align: center;">
                 If this wasn't you, please secure your account immediately by resetting your password.
               </p>
             </td>
           </tr>
-
-          <!-- Footer -->
           <tr>
             <td bgcolor="#f8f9f6" style="background-color: #f8f9f6; border-top: 1px solid rgba(27, 59, 43, 0.08); padding: 26px 24px; text-align: center;">
               <p style="margin: 0 0 6px 0; font-size: 11px; font-weight: 700; color: #1b3b2b;">
@@ -533,7 +463,6 @@ export const sendSignInEmail = async ({
               </p>
             </td>
           </tr>
-
         </table>
       </td>
     </tr>
@@ -542,18 +471,18 @@ export const sendSignInEmail = async ({
 </html>
   `;
 
-    try {
-        const info = await transporter.sendMail({
-            from: `"DineDesk Concierge" <${senderEmail}>`,
-            to: toEmail,
-            subject: `New Sign-In to DineDesk ✨ Welcome Back, ${firstName}`,
-            html: htmlTemplate,
-            text: `Hello ${firstName},\n\nA new sign-in was detected on your DineDesk account on ${loginDate} at ${loginTime}.\nDevice: ${device}\n\nAccess dashboard: ${frontendUrl}/dashboard/customer`,
-        });
+  try {
+    const info = await transporter.sendMail({
+      from: `"DineDesk Concierge" <${senderEmail}>`,
+      to: toEmail,
+      subject: `New Sign-In to DineDesk ✨ Welcome Back, ${firstName}`,
+      html: htmlTemplate,
+      text: `Hello ${firstName},\n\nA new sign-in was detected on your DineDesk account on ${loginDate} at ${loginTime}.\nDevice: ${device}\n\nAccess dashboard: ${frontendUrl}/dashboard/customer`,
+    });
 
-        console.log(`✅ [Gmail SMTP] Sign-in notice sent to ${toEmail} (ID: ${info.messageId})`);
-        return info;
-    } catch (error: any) {
-        console.error("❌ [Gmail SMTP] Sign-in email dispatch error:", error?.message || error);
-    }
+    console.log(`✅ [Gmail SMTP] Sign-in notice sent to ${toEmail} (ID: ${info.messageId})`);
+    return info;
+  } catch (error: any) {
+    console.error("❌ [Gmail SMTP] Sign-in email dispatch error:", error?.message || error);
+  }
 };

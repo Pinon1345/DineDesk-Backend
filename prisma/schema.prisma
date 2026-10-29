@@ -128,15 +128,28 @@ model PasswordResetToken {
 }
 
 model Address {
-  id          String  @id @default(cuid())
-  userId      String
-  label       String  // Home, Office
-  addressLine String
-  lat         Float?
-  lng         Float?
-  isDefault   Boolean @default(false)
+  id                   String   @id @default(cuid())
+  userId               String
+  label                String   // Home, Office, Other
+  recipientName        String?
+  contactNumber        String?
+  category             String?  // home, office, other
+  building             String?
+  road                 String?
+  apartment            String?
+  city                 String?
+  postalCode           String?
+  deliveryInstructions String?
+  addressLine          String?
+  lat                  Float?
+  lng                  Float?
+  isDefault            Boolean  @default(false)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 model Restaurant {
@@ -365,9 +378,9 @@ model Favorite {
   createdAt    DateTime    @default(now())
   updatedAt    DateTime    @updatedAt
 
-  user         User        @relation(fields: [userId], references: [id], onDelete: Cascade)
-  restaurant   Restaurant? @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
-  menuItem     MenuItem?   @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  restaurant Restaurant? @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  menuItem   MenuItem?   @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
 
   @@unique([userId, restaurantId])
   @@unique([userId, menuItemId])

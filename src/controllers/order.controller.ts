@@ -148,7 +148,17 @@ export const createOrder = async (req: Request, res: Response): Promise<void> =>
                         })),
                     },
                 },
-                include: { items: true, restaurant: { select: { id: true, name: true, coverUrl: true } } },
+                include: {
+                    items: true,
+                    restaurant: {
+                        select: {
+                            id: true,
+                            name: true,
+                            coverUrl: true,
+                            address: true,
+                        },
+                    },
+                },
             }),
             prisma.user.update({
                 where: { id: req.user.id },
@@ -205,7 +215,51 @@ export const createOrder = async (req: Request, res: Response): Promise<void> =>
     }
 };
 
-// Get user orders
+// Get single order by ID (Required for Live Order Tracker / Confirmation Page)
+export const getOrderById = async (req: Request, res: Response): Promise<void> => {
+    try {
+        if (!req.user) {
+            res.status(401).json({ success: false, message: 'Unauthorized' });
+            return;
+        }
+
+        const id = String(req.params.id);
+
+        const order = await prisma.order.findFirst({
+            where: {
+                id,
+                userId: req.user.id,
+            },
+            include: {
+                restaurant: {
+                    select: {
+                        id: true,
+                        name: true,
+                        address: true,
+                        coverUrl: true,
+                    },
+                },
+                items: {
+                    include: {
+                        menuItem: true,
+                    },
+                },
+            },
+        });
+
+        if (!order) {
+            res.status(404).json({ success: false, message: 'Order not found' });
+            return;
+        }
+
+        res.status(200).json({ success: true, data: order });
+    } catch (error: any) {
+        console.error('Get order by ID error:', error);
+        res.status(500).json({ success: false, message: 'Internal server error' });
+    }
+};
+
+// Get current user's orders
 export const getMyOrders = async (req: Request, res: Response): Promise<void> => {
     try {
         if (!req.user) {
@@ -216,8 +270,19 @@ export const getMyOrders = async (req: Request, res: Response): Promise<void> =>
         const orders = await prisma.order.findMany({
             where: { userId: req.user.id },
             include: {
-                restaurant: { select: { id: true, name: true, coverUrl: true } },
-                items: true,
+                restaurant: {
+                    select: {
+                        id: true,
+                        name: true,
+                        coverUrl: true,
+                        address: true,
+                    },
+                },
+                items: {
+                    include: {
+                        menuItem: true,
+                    },
+                },
             },
             orderBy: { createdAt: 'desc' },
         });
@@ -268,7 +333,6 @@ export const cancelOrder = async (req: Request, res: Response): Promise<void> =>
 
         const pointsToDeduct = order.pointsEarned > 0 ? order.pointsEarned : 20;
 
-        // Current user points to ensure balance never drops below 0
         const currentUser = await prisma.user.findUnique({
             where: { id: req.user.id },
             select: { loyaltyPoints: true },
@@ -276,12 +340,21 @@ export const cancelOrder = async (req: Request, res: Response): Promise<void> =>
         const currentPoints = currentUser?.loyaltyPoints || 0;
         const newLoyaltyPoints = Math.max(0, currentPoints - pointsToDeduct);
 
-        // Atomic rollback transaction: mark CANCELLED and deduct points
         const [updatedOrder, updatedUser] = await prisma.$transaction([
             prisma.order.update({
                 where: { id },
                 data: { status: 'CANCELLED' },
-                include: { items: true, restaurant: { select: { id: true, name: true, coverUrl: true } } },
+                include: {
+                    items: true,
+                    restaurant: {
+                        select: {
+                            id: true,
+                            name: true,
+                            coverUrl: true,
+                            address: true,
+                        },
+                    },
+                },
             }),
             prisma.user.update({
                 where: { id: req.user.id },
