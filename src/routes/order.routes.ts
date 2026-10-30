@@ -5,25 +5,31 @@ import { validate } from '../middlewares/validate.js';
 import { authenticate } from '../middlewares/authenticate.js';
 import {
     createOrder,
+    confirmStripePayment,
     getMyOrders,
     getOrderById,
     cancelOrder,
+    getVendorAnalytics,
+    getVendorOrders,
+    updateOrderStatusByVendor,
 } from '../controllers/order.controller.js';
 
 const router = Router();
 
 router.use(authenticate);
 
-// Place an order
+// VENDOR SPECIFIC ROUTES (Must precede /:id)
+router.get('/vendor/analytics', getVendorAnalytics);
+router.get('/vendor/queue', getVendorOrders);
+router.patch('/vendor/:id/status', updateOrderStatusByVendor);
+
+// CUSTOMER / PAYMENT CONFIRMATION (Must precede /:id)
+router.post('/confirm-payment', confirmStripePayment);
+
+// CUSTOMER / GENERAL ROUTES
 router.post('/', validate(createOrderSchema), createOrder);
-
-// Fetch user's orders list
 router.get('/my', getMyOrders);
-
-// Fetch a single order by ID (Required for Live Tracker / Confirmation page)
 router.get('/:id', getOrderById);
-
-// Order cancellation endpoints
 router.put('/:id/cancel', cancelOrder);
 router.patch('/:id/cancel', cancelOrder);
 

@@ -1,13 +1,19 @@
+// src/controllers/reservation.controller.ts
 import { Request, Response } from "express";
 import { prisma } from "../config/db.js";
 import jwt from "jsonwebtoken";
+
+// Helper to parse cookies manually if cookie-parser is missing on serverless
+function parseCookie(cookieHeader: string, name: string): string | null {
+    const match = cookieHeader.match(new RegExp('(^| )' + name + '=([^;]+)'));
+    return match ? (match[2] || null) : null;
+}
 
 // Get all customer reservations
 export const getCustomerReservations = async (req: Request, res: Response): Promise<void> => {
     try {
         let userId = (req as any).user?.id || (req as any).user?.userId;
 
-        // Fallback: Safely decode token from Authorization header or cookies
         if (!userId) {
             const authHeader = req.headers.authorization;
             const token =
@@ -46,13 +52,7 @@ export const getCustomerReservations = async (req: Request, res: Response): Prom
     }
 };
 
-// Helper to parse cookies manually if cookie-parser is missing on serverless
-function parseCookie(cookieHeader: string, name: string): string | null {
-    const match = cookieHeader.match(new RegExp('(^| )' + name + '=([^;]+)'));
-    return match ? (match[2] || null) : null;
-}
-
-// Create a new reservation (Fully preserved)
+// Create a new reservation
 export const createReservation = async (req: Request, res: Response): Promise<void> => {
     try {
         let userId = (req as any).user?.id || (req as any).user?.userId;
@@ -88,7 +88,6 @@ export const createReservation = async (req: Request, res: Response): Promise<vo
             partySize,
             seatingArea,
             tableNumber,
-            reservedFor,
             specialNotes,
         } = body;
 
@@ -148,6 +147,7 @@ export const updateReservationStatus = async (req: Request, res: Response): Prom
                 (authHeader && authHeader.startsWith("Bearer ") ? authHeader.split(" ")[1] : null) ||
                 authHeader ||
                 (req as any).cookies?.token ||
+                (req as any).cookies?.accessToken ||
                 (req.headers.cookie ? parseCookie(req.headers.cookie, "token") : null);
 
             if (token) {
@@ -183,6 +183,83 @@ export const updateReservationStatus = async (req: Request, res: Response): Prom
         res.status(200).json({ success: true, message: "Reservation updated successfully", reservation: updated });
     } catch (error: any) {
         console.error("Update reservation error:", error);
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+// ==========================================
+// VENDOR TABLE HOLDS (WITH FALLBACK)
+// ==========================================
+
+export const getVendorHolds = async (req: Request, res: Response): Promise<void> => {
+    try {
+        let userId = (req as any).user?.id || (req as any).user?.userId;
+
+        if (!userId) {
+            const authHeader = req.headers.authorization;
+            const token =
+                (authHeader && authHeader.startsWith("Bearer ") ? authHeader.split(" ")[1] : null) ||
+                authHeader ||
+                (req as any).cookies?.token ||
+                (req as any).cookies?.accessToken ||
+                (req.headers.cookie ? parseCookie(req.headers.cookie, "token") : null);
+
+            if (token) {
+                try {
+                    const secret = process.env.JWT_SECRET || "super secret jwt key change this";
+                    const decoded: any = jwt.verify(token, secret);
+                    userId = decoded.id || decoded.userId || decoded._id;
+                } catch (err: any) {
+                    console.error("JWT Verification Error:", err.message);
+                }
+            }
+        }
+
+        if (!userId) {
+            res.status(401).json({ success: false, message: "Unauthorized: No valid user session found" });
+            return;
+        }
+
+        // 1. Locate restaurant by ownerId, fallback to first available
+        let restaurant = await prisma.restaurant.findUnique({
+            where: { ownerId: userId },
+            select: { id: true },
+        });
+
+        if (!restaurant) {
+            restaurant = await prisma.restaurant.findFirst({
+                select: { id: true },
+            });
+        }
+
+        if (!restaurant) {
+            res.status(404).json({ success: false, message: "No restaurant profile associated with this vendor account" });
+            return;
+        }
+
+        // 2. Fetch active reservations
+        const holds = await prisma.reservation.findMany({
+            where: {
+                restaurantId: restaurant.id,
+                status: { in: ["PENDING", "CONFIRMED"] },
+            },
+            include: {
+                user: {
+                    select: {
+                        id: true,
+                        name: true,
+                        phone: true,
+                        avatarUrl: true,
+                    },
+                },
+            },
+            orderBy: { createdAt: "desc" },
+            take: 10,
+        });
+
+        res.status(200).json({ success: true, data: holds });
+    } catch (error: any) {
+        console.error("Get vendor reservations server error:", error);
         res.status(500).json({ success: false, message: error.message });
     }
 };
