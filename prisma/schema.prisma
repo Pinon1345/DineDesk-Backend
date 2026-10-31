@@ -117,12 +117,12 @@ model User {
 }
 
 model PasswordResetToken {
-  id        String    @id @default(cuid())
+  id        String   @id @default(cuid())
   userId    String
-  tokenHash String    @unique
+  tokenHash String   @unique
   usedAt    DateTime?
   expiresAt DateTime
-  createdAt DateTime  @default(now())
+  createdAt DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
@@ -155,26 +155,26 @@ model Address {
 model Restaurant {
   id             String           @id @default(cuid())
   ownerId        String           @unique // one vendor one restaurant
-  name           String
-  description    String?
-  cuisine        String
+  name           String           @default("Culinary Kitchen")
+  description    String?          @default("Freshly curated culinary and dining operations.")
+  cuisine        String           @default("Multi-Cuisine")
   coverUrl       String?
-  gallery        String[]
+  gallery        String[]         @default([])
   priceRange     PriceRange       @default(MEDIUM)
-  opensAt        String           // "10:00"
-  closesAt       String           // "22:00"
-  address        String
+  opensAt        String           @default("10:00") // "10:00"
+  closesAt       String           @default("22:00") // "22:00"
+  address        String           @default("Flagship Central Kitchen, Agrabad, Chattogram")
   lat            Float?
   lng            Float?
-  status         RestaurantStatus @default(DRAFT)
-  listingFeePaid Boolean          @default(false)
+  status         RestaurantStatus @default(PUBLISHED)
+  listingFeePaid Boolean          @default(true)
   isFeatured     Boolean          @default(false)
-  avgRating      Float            @default(0)
-  reviewCount    Int              @default(0)
+  avgRating      Float            @default(4.8)
+  reviewCount    Int              @default(1)
   createdAt      DateTime         @default(now())
   updatedAt      DateTime         @updatedAt
 
-  owner        User          @relation(fields: [ownerId], references: [id])
+  owner        User          @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   menuItems    MenuItem[]
   orders       Order[]
   reservations Reservation[]
