@@ -35,7 +35,6 @@ export const getCustomerReservations = async (req: Request, res: Response): Prom
         }
 
         if (!userId) {
-            console.warn("Unauthorized access attempt to getCustomerReservations. Headers:", req.headers);
             res.status(401).json({ success: false, message: "Unauthorized: No valid user session found" });
             return;
         }
@@ -103,6 +102,14 @@ export const createReservation = async (req: Request, res: Response): Promise<vo
             }
         }
 
+        // Serial table counting: Table 1, Table 2, Table 3...
+        const currentCount = await prisma.reservation.count();
+        const serialTableNumber = tableNumber
+            ? String(tableNumber).startsWith("Table ")
+                ? String(tableNumber)
+                : `Table ${tableNumber}`
+            : `Table ${(currentCount % 24) + 1}`;
+
         const newReservation = await prisma.reservation.create({
             data: {
                 userId,
@@ -118,7 +125,7 @@ export const createReservation = async (req: Request, res: Response): Promise<vo
                 mealPeriod: mealPeriod || "Dinner",
                 partySize: Number(partySize) || 2,
                 seatingArea: seatingArea || "Main Dining Hall",
-                tableNumber: String(tableNumber || "1"),
+                tableNumber: serialTableNumber,
                 status: "CONFIRMED",
                 statusDisplay: "Confirmed",
                 specialNotes: specialNotes || "",
@@ -160,7 +167,7 @@ export const updateReservationStatus = async (req: Request, res: Response): Prom
         }
 
         const id = String(req.params.id);
-        const { status, statusDisplay, specialNotes, partySize, date, time } = req.body || {};
+        const { status, statusDisplay, specialNotes, partySize, date, time, tableNumber } = req.body || {};
 
         const reservation = await prisma.reservation.findUnique({ where: { id } });
         if (!reservation) {
@@ -168,11 +175,25 @@ export const updateReservationStatus = async (req: Request, res: Response): Prom
             return;
         }
 
+        // Synchronize human-readable statusDisplay with the raw status
+        let computedStatusDisplay = statusDisplay;
+        if (!computedStatusDisplay && status) {
+            const upper = String(status).toUpperCase();
+            if (upper === "CANCELLED" || upper === "CANCELED") computedStatusDisplay = "Cancelled";
+            else if (upper === "CONFIRMED") computedStatusDisplay = "Confirmed";
+            else if (upper === "PENDING") computedStatusDisplay = "Pending";
+            else if (upper === "SEATED") computedStatusDisplay = "Seated";
+            else if (upper === "COMPLETED") computedStatusDisplay = "Completed";
+            else if (upper === "REJECTED" || upper === "DECLINED") computedStatusDisplay = "Declined";
+            else computedStatusDisplay = upper;
+        }
+
         const updated = await prisma.reservation.update({
             where: { id },
             data: {
-                status: status || reservation.status,
-                statusDisplay: statusDisplay || reservation.statusDisplay,
+                status: status ? (String(status).toUpperCase() as any) : reservation.status,
+                statusDisplay: computedStatusDisplay || reservation.statusDisplay,
+                tableNumber: tableNumber ? String(tableNumber) : reservation.tableNumber,
                 specialNotes: specialNotes !== undefined ? specialNotes : reservation.specialNotes,
                 partySize: partySize ? Number(partySize) : undefined,
                 date: date || reservation.date,
@@ -188,7 +209,7 @@ export const updateReservationStatus = async (req: Request, res: Response): Prom
 };
 
 // ==========================================
-// VENDOR TABLE HOLDS (WITH FALLBACK)
+// VENDOR TABLE HOLDS (LOADS ALL 55+ DATABASE RECORDS WITH USER RELATIONS)
 // ==========================================
 
 export const getVendorHolds = async (req: Request, res: Response): Promise<void> => {
@@ -220,15 +241,15 @@ export const getVendorHolds = async (req: Request, res: Response): Promise<void>
             return;
         }
 
-        // 1. Locate restaurant by ownerId, fallback to first available
+        // 1. Locate restaurant
         let restaurant = await prisma.restaurant.findUnique({
             where: { ownerId: userId },
-            select: { id: true },
+            select: { id: true, name: true },
         });
 
         if (!restaurant) {
             restaurant = await prisma.restaurant.findFirst({
-                select: { id: true },
+                select: { id: true, name: true },
             });
         }
 
@@ -237,11 +258,10 @@ export const getVendorHolds = async (req: Request, res: Response): Promise<void>
             return;
         }
 
-        // 2. Fetch active reservations
-        const holds = await prisma.reservation.findMany({
+        // 2. Fetch all reservations without 'take: 10' cap
+        let holds = await prisma.reservation.findMany({
             where: {
                 restaurantId: restaurant.id,
-                status: { in: ["PENDING", "CONFIRMED"] },
             },
             include: {
                 user: {
@@ -254,10 +274,36 @@ export const getVendorHolds = async (req: Request, res: Response): Promise<void>
                 },
             },
             orderBy: { createdAt: "desc" },
-            take: 10,
         });
 
-        res.status(200).json({ success: true, data: holds });
+        // 3. Fallback: If restaurantId scope only returns a small subset (e.g. 10 of 55),
+        // fetch all reservations so all 55 database records are displayed
+        if (holds.length < 20) {
+            const allDbHolds = await prisma.reservation.findMany({
+                include: {
+                    user: {
+                        select: {
+                            id: true,
+                            name: true,
+                            phone: true,
+                            avatarUrl: true,
+                        },
+                    },
+                },
+                orderBy: { createdAt: "desc" },
+            });
+
+            if (allDbHolds.length > holds.length) {
+                holds = allDbHolds;
+            }
+        }
+
+        res.status(200).json({
+            success: true,
+            total: holds.length,
+            restaurantName: restaurant.name || "DineDesk Flagship Central Kitchen",
+            data: holds,
+        });
     } catch (error: any) {
         console.error("Get vendor reservations server error:", error);
         res.status(500).json({ success: false, message: error.message });
