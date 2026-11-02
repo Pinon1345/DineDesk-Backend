@@ -59,6 +59,7 @@ enum PaymentStatus {
 enum ReservationStatus {
   PENDING
   CONFIRMED
+  SEATED
   COMPLETED
   CANCELLED
   DECLINED
@@ -105,24 +106,24 @@ model User {
   createdAt          DateTime            @default(now())
   updatedAt          DateTime            @updatedAt
 
-  addresses          Address[]
-  restaurant         Restaurant?
-  cartItems          CartItem[]
-  orders             Order[]
-  reservations       Reservation[]
-  reviews            Review[]
-  favorites          Favorite[]
-  resetTokens        PasswordResetToken[]
-  transactions       Transaction[]
+  addresses    Address[]
+  restaurant   Restaurant?
+  cartItems    CartItem[]
+  orders       Order[]
+  reservations Reservation[]
+  reviews      Review[]
+  favorites    Favorite[]
+  resetTokens  PasswordResetToken[]
+  transactions Transaction[]
 }
 
 model PasswordResetToken {
-  id        String   @id @default(cuid())
+  id        String    @id @default(cuid())
   userId    String
-  tokenHash String   @unique
+  tokenHash String    @unique
   usedAt    DateTime?
   expiresAt DateTime
-  createdAt DateTime @default(now())
+  createdAt DateTime  @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
@@ -161,8 +162,8 @@ model Restaurant {
   coverUrl       String?
   gallery        String[]         @default([])
   priceRange     PriceRange       @default(MEDIUM)
-  opensAt        String           @default("10:00") // "10:00"
-  closesAt       String           @default("22:00") // "22:00"
+  opensAt        String           @default("10:00")
+  closesAt       String           @default("22:00")
   address        String           @default("Flagship Central Kitchen, Agrabad, Chattogram")
   lat            Float?
   lng            Float?
@@ -174,12 +175,13 @@ model Restaurant {
   createdAt      DateTime         @default(now())
   updatedAt      DateTime         @updatedAt
 
-  owner        User          @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  owner        User              @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   menuItems    MenuItem[]
   orders       Order[]
   reservations Reservation[]
   reviews      Review[]
   favorites    Favorite[]
+  tables       RestaurantTable[]
 
   @@index([status, cuisine])
   @@index([avgRating])
@@ -339,6 +341,7 @@ model Reservation {
   partySize          Int
   seatingArea        String
   tableNumber        String?
+  tableId            String?
   status             ReservationStatus @default(CONFIRMED)
   statusDisplay      String            @default("Confirmed")
   specialNotes       String?
@@ -346,11 +349,32 @@ model Reservation {
   createdAt          DateTime          @default(now())
   updatedAt          DateTime          @updatedAt
 
-  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  user       User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  restaurant Restaurant       @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  table      RestaurantTable? @relation(fields: [tableId], references: [id], onDelete: SetNull)
 
   @@index([userId, status])
   @@index([restaurantId, status])
+}
+
+model RestaurantTable {
+  id           String        @id @default(cuid())
+  tableNumber  String        // e.g. "Table 1", "Table 2"
+  label        String        // e.g. "Table 1"
+  shortName    String        // e.g. "T-1"
+  section      String        // e.g. "Main Dining Hall", "Family Hall", "Courtyard Terrace"
+  capacity     Int           @default(4)
+  shape        String        @default("rectangle") // "rectangle" | "circle"
+  status       String        @default("AVAILABLE") // "AVAILABLE" | "OCCUPIED" | "RESERVED"
+  restaurantId String
+  restaurant   Restaurant    @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  reservations Reservation[]
+
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  @@unique([restaurantId, tableNumber])
+  @@index([restaurantId, section])
 }
 
 model Review {

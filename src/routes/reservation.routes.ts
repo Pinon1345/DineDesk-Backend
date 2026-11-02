@@ -6,6 +6,8 @@ import {
     getCustomerReservations,
     updateReservationStatus,
     getVendorHolds,
+    getVendorFloorTables,
+    updateFloorTableStatus,
 } from "../controllers/reservation.controller.js";
 import { createReservationSchema } from "../validations/social.validation.js";
 import { updateReservationSchema } from "../validations/reservation.validation.js";
@@ -19,6 +21,13 @@ router.use(authenticate);
 // VENDOR TABLE HOLDS (Live Dashboard Queue)
 // ==========================================
 router.get("/vendor/holds", getVendorHolds);
+
+// ==========================================
+// VENDOR FLOOR MATRIX & DYNAMIC TABLES
+// ==========================================
+router.get("/vendor/floor-tables", getVendorFloorTables);
+router.patch("/vendor/floor-tables/:tableNumber/status", updateFloorTableStatus);
+router.patch("/vendor/:id/status", updateReservationStatus);
 
 // ==========================================
 // CUSTOMER RESERVATIONS
