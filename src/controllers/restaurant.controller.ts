@@ -128,7 +128,7 @@ export const getVendorRestaurantProfile = async (req: Request, res: Response): P
             where: userId ? { ownerId: userId } : undefined,
             include: {
                 owner: {
-                    select: { email: true, name: true },
+                    select: { email: true, name: true, avatarUrl: true },
                 },
                 menuItems: { select: { id: true } },
             },
@@ -138,7 +138,7 @@ export const getVendorRestaurantProfile = async (req: Request, res: Response): P
             restaurant = await prisma.restaurant.findFirst({
                 include: {
                     owner: {
-                        select: { email: true, name: true },
+                        select: { email: true, name: true, avatarUrl: true },
                     },
                     menuItems: { select: { id: true } },
                 },
@@ -154,6 +154,7 @@ export const getVendorRestaurantProfile = async (req: Request, res: Response): P
             success: true,
             data: {
                 ...restaurant,
+                logoImage: (restaurant as any).owner?.avatarUrl || (restaurant as any).logoImage || null,
                 contactEmail: (restaurant as any).owner?.email || 'manager@dinedesk.com',
                 coverImage: (restaurant as any).coverUrl,
                 image: (restaurant as any).coverUrl,
@@ -195,6 +196,7 @@ export const updateVendorRestaurantProfile = async (req: Request, res: Response)
             coverImage,
             coverUrl,
             image,
+            logoImage,
             galleryImages,
             gallery,
             latitude,
@@ -207,19 +209,19 @@ export const updateVendorRestaurantProfile = async (req: Request, res: Response)
             status,
         } = req.body || {};
 
-        // 1. Resolve combined address string
+        // 1. Resolve combined physical address
         const resolvedAddress = [streetAddress || address, neighborhood]
             .filter(Boolean)
             .join(', ') || restaurant.address;
 
-        // 2. Resolve cuisine
+        // 2. Resolve cuisine string
         const resolvedCuisine =
             cuisine ||
             cuisineCategory ||
             (Array.isArray(cuisineTags) ? cuisineTags.join(', ') : undefined) ||
             restaurant.cuisine;
 
-        // 3. Resolve description
+        // 3. Resolve description / tagline
         const resolvedDescription = description || tagline || restaurant.description;
 
         // 4. Resolve cover URL -> matches coverUrl in schema
@@ -248,8 +250,8 @@ export const updateVendorRestaurantProfile = async (req: Request, res: Response)
             }
         }
 
-        // 8. Build valid object STRICTLY matching the verified Restaurant schema:
-        // Excluded: phone, contactEmail, image, tagline, cuisineTags, etc.
+        // 8. Build valid object strictly conforming to Prisma Restaurant model
+        // NOTE: phone and contactEmail are excluded because they are not scalar fields on the Restaurant model
         const validPrismaData: any = {
             name: name !== undefined ? name : restaurant.name,
             description: resolvedDescription,
@@ -265,7 +267,7 @@ export const updateVendorRestaurantProfile = async (req: Request, res: Response)
         if (closesAt !== undefined) validPrismaData.closesAt = closesAt;
         if (status !== undefined) validPrismaData.status = status;
 
-        // Normalize price tier to enum matching PriceRange type
+        // Map price tier to schema enum
         const rawPrice = priceRange || priceTier;
         if (rawPrice) {
             const priceMap: Record<string, string> = {
@@ -286,12 +288,26 @@ export const updateVendorRestaurantProfile = async (req: Request, res: Response)
             data: validPrismaData,
         });
 
+        // 9. Persist Logo to the associated owner/user record so it remains permanent on reload
+        const effectiveOwnerId = restaurant.ownerId || userId;
+        if (logoImage && effectiveOwnerId) {
+            try {
+                await prisma.user.update({
+                    where: { id: effectiveOwnerId },
+                    data: { avatarUrl: logoImage },
+                });
+            } catch (err) {
+                console.warn('Could not sync logo to owner user model:', err);
+            }
+        }
+
         res.status(200).json({
             success: true,
             message: 'Restaurant profile parameters updated successfully in PostgreSQL',
             data: {
                 ...updated,
                 ...req.body,
+                logoImage: logoImage || (restaurant as any).logoImage,
                 coverImage: (updated as any).coverUrl,
             },
         });
