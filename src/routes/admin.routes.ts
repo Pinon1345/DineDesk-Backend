@@ -11,6 +11,8 @@ import {
     getAdminTransactions,
     getAdminStaffDirectory,
     updateStaffRole,
+    getAdminPlatformSettings,
+    updateAdminPlatformSettings,
     getVendorOrders,
     updateOrderStatus,
     getPendingRestaurants,
@@ -85,13 +87,26 @@ router.patch('/staff/:id/role', authorize('ADMIN', 'SUPERADMIN'), updateStaffRol
 router.patch('/admin/staff/:id/role', authorize('ADMIN', 'SUPERADMIN'), updateStaffRole);
 
 // ==========================================
-// 7. VENDOR FLOOR & ORDER ROUTES
+// 7. PLATFORM GLOBAL SETTINGS & CONTROLS
+// ==========================================
+// Supports both path prefixes:
+// e.g., /api/v1/admin/settings or /api/v1/settings
+router.get('/settings', authorize('ADMIN', 'SUPERADMIN'), getAdminPlatformSettings);
+router.get('/admin/settings', authorize('ADMIN', 'SUPERADMIN'), getAdminPlatformSettings);
+
+router.post('/settings', authorize('ADMIN', 'SUPERADMIN'), updateAdminPlatformSettings);
+router.post('/admin/settings', authorize('ADMIN', 'SUPERADMIN'), updateAdminPlatformSettings);
+router.put('/settings', authorize('ADMIN', 'SUPERADMIN'), updateAdminPlatformSettings);
+router.put('/admin/settings', authorize('ADMIN', 'SUPERADMIN'), updateAdminPlatformSettings);
+
+// ==========================================
+// 8. VENDOR FLOOR & ORDER ROUTES
 // ==========================================
 router.get('/vendor/orders', authorize('VENDOR'), getVendorOrders);
 router.patch('/vendor/orders/:id/status', authorize('VENDOR'), updateOrderStatus);
 
 // ==========================================
-// 8. ADMIN & SUPER ADMIN RESTAURANT APPROVALS
+// 9. ADMIN & SUPER ADMIN RESTAURANT APPROVALS
 // ==========================================
 router.get('/admin/restaurants/pending', authorize('ADMIN', 'SUPERADMIN'), getPendingRestaurants);
 router.patch('/admin/restaurants/:id/status', authorize('ADMIN', 'SUPERADMIN'), updateRestaurantStatus);

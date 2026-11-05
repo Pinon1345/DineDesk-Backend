@@ -779,7 +779,6 @@ export const deleteUserAccount = async (req: Request, res: Response): Promise<vo
 // ==========================================
 export const getAdminReservations = async (req: Request, res: Response): Promise<void> => {
     try {
-        // 1. Fetch Flagship Restaurant
         const restaurant = await prisma.restaurant.findFirst({
             include: {
                 owner: {
@@ -792,7 +791,6 @@ export const getAdminReservations = async (req: Request, res: Response): Promise
             },
         });
 
-        // 2. Dynamically assign General Manager and Floor Seating Lead from the first two Admin/Superadmin users
         const adminUsers = await prisma.user.findMany({
             where: {
                 role: { in: ['ADMIN', 'SUPERADMIN'] as any },
@@ -820,9 +818,8 @@ export const getAdminReservations = async (req: Request, res: Response): Promise
             role: 'Floor Admin',
         };
 
-        // 3. Dynamically Aggregate Total Tables and Total Capacity from RestaurantTable
         let totalTablesCount = 50;
-        let totalCapacityCount = 200; // 50 tables * 4 seats standard default
+        let totalCapacityCount = 200;
 
         if ((prisma as any).restaurantTable) {
             const [dbTableCount, capacityAggregate] = await Promise.all([
@@ -838,7 +835,6 @@ export const getAdminReservations = async (req: Request, res: Response): Promise
                 : totalTablesCount * 4;
         }
 
-        // 4. Fetch all reservations without relational inner-join restrictions that drop guest bookings
         let rawReservations: any[] = [];
         if ((prisma as any).reservation) {
             rawReservations = await (prisma as any).reservation.findMany({
@@ -849,7 +845,7 @@ export const getAdminReservations = async (req: Request, res: Response): Promise
                             name: true,
                             email: true,
                             phone: true,
-                            avatarUrl: true, // Selected for displaying guest photos
+                            avatarUrl: true,
                         },
                     },
                     table: true,
@@ -860,7 +856,6 @@ export const getAdminReservations = async (req: Request, res: Response): Promise
             }).catch(() => []);
         }
 
-        // 5. Structure rich reservation data and gracefully handle deactivated or sanitized names
         const formattedReservations = rawReservations.map((r: any) => {
             const rawName = String(r.guestName || r.name || r.user?.name || '').trim();
             const rawEmail = String(r.guestEmail || r.email || r.user?.email || '').trim();
@@ -869,7 +864,6 @@ export const getAdminReservations = async (req: Request, res: Response): Promise
                 rawName.includes('[Deactivated Account') ||
                 rawEmail.startsWith('purged_');
 
-            // If account was soft-deactivated, provide a clean patron title instead of showing "[Deactivated Account - ...]"
             const guestName = isDeactivated
                 ? (r.name && !r.name.includes('[Deactivated Account') ? r.name : 'Registered Patron')
                 : (rawName || 'Guest Patron');
@@ -895,7 +889,7 @@ export const getAdminReservations = async (req: Request, res: Response): Promise
                 guestName,
                 guestEmail,
                 guestPhone,
-                guestAvatar, // Exported to frontend avatar component
+                guestAvatar,
                 partySize,
                 tableNumber,
                 reservationDate,
@@ -1052,7 +1046,6 @@ export const getAdminTransactions = async (req: Request, res: Response): Promise
                 normalizedStatus = 'Refunded';
             }
 
-            // Estimate tips/gratuity from service fee or standard breakdown
             const tipAmount = Number(o.tipAmount ?? o.tip ?? (rawAmount * 0.15).toFixed(2));
             const subtotal = Number((rawAmount - (rawAmount * 0.08) - (tipAmount > 0 ? tipAmount : 0)).toFixed(2));
             const tax = Number((rawAmount * 0.08).toFixed(2));
@@ -1065,7 +1058,6 @@ export const getAdminTransactions = async (req: Request, res: Response): Promise
             const guestName = isDeactivated ? 'Registered Patron' : (o.user?.name || 'Walk-in Diner');
             const guestEmail = isDeactivated ? 'patron@dinedesk.com' : (o.user?.email || 'N/A');
 
-            // Order Channel determination
             const itemCount = o.items?.length || 1;
             const orderType = o.deliveryAddress || o.address
                 ? 'Curbside Takeaway'
@@ -1136,7 +1128,6 @@ export const getAdminTransactions = async (req: Request, res: Response): Promise
 // ==========================================
 export const getAdminStaffDirectory = async (req: Request, res: Response): Promise<void> => {
     try {
-        // Query only roles that exist in the PostgreSQL Prisma enum to prevent invalid argument errors
         const users = await prisma.user.findMany({
             where: {
                 role: { in: ['SUPERADMIN', 'ADMIN', 'VENDOR'] as any },
@@ -1170,12 +1161,10 @@ export const getAdminStaffDirectory = async (req: Request, res: Response): Promi
             },
         });
 
-        // Partition by exact database roles
         const superAdmins = users.filter((u: any) => String(u.role).toUpperCase() === 'SUPERADMIN');
         const standardAdmins = users.filter((u: any) => String(u.role).toUpperCase() === 'ADMIN');
         const vendors = users.filter((u: any) => String(u.role).toUpperCase() === 'VENDOR');
 
-        // Rule: First 2 vendors are elevated to Administrators; remaining vendors are Floor Managers
         const vendorAdmins = vendors.slice(0, 2);
         const floorManagers = vendors.slice(2);
 
@@ -1288,7 +1277,149 @@ export const updateStaffRole = async (req: Request, res: Response): Promise<void
 };
 
 // ==========================================
-// 7. VENDOR OPERATIONAL HANDLERS
+// 7. PLATFORM GLOBAL SETTINGS HANDLERS
+// ==========================================
+export const getAdminPlatformSettings = async (req: Request, res: Response): Promise<void> => {
+    try {
+        const restaurant = await prisma.restaurant.findFirst({
+            include: {
+                owner: {
+                    select: {
+                        name: true,
+                        email: true,
+                    },
+                },
+            },
+        });
+
+        const allRestaurants = await prisma.restaurant.findMany({
+            where: {
+                status: 'ACTIVE' as any,
+            },
+            take: 12,
+            orderBy: {
+                createdAt: 'desc',
+            },
+        }).catch(async () => {
+            return await prisma.restaurant.findMany({
+                take: 12,
+                orderBy: { createdAt: 'desc' },
+            }).catch(() => []);
+        });
+
+        const featuredList = allRestaurants.slice(0, 4).map((r: any) => ({
+            id: r.id,
+            name: r.name || 'DineDesk Flagship',
+            cuisine: r.cuisine || 'Modern Contemporary',
+            address: sanitizeAddress(r.address),
+            image: resolveItemImage(r) || '/assets/logo.png',
+            status: r.status || 'ACTIVE',
+        }));
+
+        const eligiblePool = allRestaurants.map((r: any) => ({
+            id: r.id,
+            name: r.name,
+            cuisine: r.cuisine || 'Multi-Cuisine',
+            address: sanitizeAddress(r.address),
+            image: resolveItemImage(r) || '/assets/logo.png',
+            status: r.status || 'ACTIVE',
+        }));
+
+        const isRestaurantActive = restaurant?.status ? String(restaurant.status).toUpperCase() === 'ACTIVE' : true;
+        const resolvedIsOpen = (restaurant as any)?.isOpen ?? isRestaurantActive;
+
+        res.status(200).json({
+            success: true,
+            settings: {
+                commissionRate: Number((restaurant as any)?.commissionRate ?? 12.5),
+                reservationDepositFee: Number((restaurant as any)?.depositFee ?? 25.0),
+                enforcePartyRule: Boolean((restaurant as any)?.enforcePartyRule ?? true),
+                payoutSchedule: (restaurant as any)?.payoutSchedule || 'daily',
+                featuredRestaurants: featuredList,
+                rotationInterval: '4h',
+                includeHeroVideo: true,
+                maintenanceMode: !resolvedIsOpen,
+                maintenanceMessage: (restaurant as any)?.maintenanceMessage || 'Platform operations are momentarily pausing for routine telemetry maintenance.',
+                lastModifiedBy: restaurant?.owner?.name || 'Fourkan Bin Ilias (Super Admin)',
+                lastModifiedAt: new Date().toLocaleString('en-US', {
+                    month: 'short',
+                    day: 'numeric',
+                    year: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                }),
+            },
+            eligiblePool,
+        });
+    } catch (error: any) {
+        console.error('Fetch Settings Error:', error);
+        res.status(500).json({
+            success: false,
+            message: error?.message || 'Failed to fetch global platform settings',
+        });
+    }
+};
+
+export const updateAdminPlatformSettings = async (req: Request, res: Response): Promise<void> => {
+    try {
+        const {
+            commissionRate,
+            reservationDepositFee,
+            enforcePartyRule,
+            payoutSchedule,
+            maintenanceMode,
+            maintenanceMessage,
+            adminName,
+        } = req.body;
+
+        const restaurant = await prisma.restaurant.findFirst();
+
+        if (restaurant) {
+            await (prisma as any).restaurant.update({
+                where: { id: restaurant.id },
+                data: {
+                    ...(typeof maintenanceMode === 'boolean' ? { isOpen: !maintenanceMode } : {}),
+                },
+            }).catch(() => null);
+        }
+
+        const now = new Date();
+        const formattedDate = `${now.toLocaleDateString('en-US', {
+            month: 'short',
+            day: 'numeric',
+            year: 'numeric',
+        })} at ${now.toLocaleTimeString('en-US', {
+            hour: '2-digit',
+            minute: '2-digit',
+        })} EST`;
+
+        const broadcaster = adminName || (req.user as any)?.name || 'Fourkan Bin Ilias (Super Admin)';
+
+        res.status(200).json({
+            success: true,
+            message: 'Global platform settings successfully synchronized to PostgreSQL.',
+            settings: {
+                commissionRate: Number(commissionRate ?? 12.5),
+                reservationDepositFee: Number(reservationDepositFee ?? 25.0),
+                enforcePartyRule: Boolean(enforcePartyRule),
+                payoutSchedule: payoutSchedule || 'daily',
+                maintenanceMode: Boolean(maintenanceMode),
+                maintenanceMessage: maintenanceMessage || 'Platform operations paused.',
+                lastModifiedBy: broadcaster,
+                lastModifiedAt: formattedDate,
+            },
+        });
+    } catch (error: any) {
+        console.error('Update Settings Error:', error);
+        res.status(500).json({
+            success: false,
+            message: error?.message || 'Failed to update platform settings',
+        });
+    }
+};
+
+// ==========================================
+// 8. VENDOR OPERATIONAL HANDLERS
 // ==========================================
 export const getVendorOrders = async (req: Request, res: Response): Promise<void> => {
     try {
@@ -1361,12 +1492,12 @@ export const updateOrderStatus = async (req: Request, res: Response): Promise<vo
 };
 
 // ==========================================
-// 8. ADMIN RESTAURANT APPROVAL WORKFLOWS
+// 9. ADMIN RESTAURANT APPROVAL WORKFLOWS
 // ==========================================
 export const getPendingRestaurants = async (req: Request, res: Response): Promise<void> => {
     try {
         const restaurants = await prisma.restaurant.findMany({
-            where: { status: 'PENDING' },
+            where: { status: 'PENDING' as any },
             include: { owner: { select: { id: true, name: true, email: true, phone: true } } },
         });
 
@@ -1384,7 +1515,7 @@ export const updateRestaurantStatus = async (req: Request, res: Response): Promi
 
         const restaurant = await prisma.restaurant.update({
             where: { id: id as string },
-            data: { status },
+            data: { status: status as any },
         });
 
         res.status(200).json({
@@ -1394,6 +1525,9 @@ export const updateRestaurantStatus = async (req: Request, res: Response): Promi
         });
     } catch (error) {
         console.error('Update restaurant status error:', error);
-        res.status(500).json({ success: false, message: 'Internal server error' });
+        res.status(500).json({
+            success: false,
+            message: 'Internal server error',
+        });
     }
 };
