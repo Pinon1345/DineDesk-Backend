@@ -3,6 +3,9 @@ import { Router } from 'express';
 import {
     getAdminOverviewData,
     getAdminAnalyticsData,
+    getAdminUsers,
+    updateUserRole,
+    deleteUserAccount,
     getVendorOrders,
     updateOrderStatus,
     getPendingRestaurants,
@@ -33,13 +36,27 @@ router.get('/analytics', authorize('ADMIN', 'SUPERADMIN'), getAdminAnalyticsData
 router.get('/admin/analytics', authorize('ADMIN', 'SUPERADMIN'), getAdminAnalyticsData);
 
 // ==========================================
-// 3. VENDOR FLOOR & ORDER ROUTES
+// 3. USER MANAGEMENT & RBAC DIRECTORY
+// ==========================================
+// Supports both path prefixes:
+// e.g., /api/v1/admin/users or /api/v1/users
+router.get('/users', authorize('ADMIN', 'SUPERADMIN'), getAdminUsers);
+router.get('/admin/users', authorize('ADMIN', 'SUPERADMIN'), getAdminUsers);
+
+router.patch('/users/:id/role', authorize('ADMIN', 'SUPERADMIN'), updateUserRole);
+router.patch('/admin/users/:id/role', authorize('ADMIN', 'SUPERADMIN'), updateUserRole);
+
+router.delete('/users/:id', authorize('ADMIN', 'SUPERADMIN'), deleteUserAccount);
+router.delete('/admin/users/:id', authorize('ADMIN', 'SUPERADMIN'), deleteUserAccount);
+
+// ==========================================
+// 4. VENDOR FLOOR & ORDER ROUTES
 // ==========================================
 router.get('/vendor/orders', authorize('VENDOR'), getVendorOrders);
 router.patch('/vendor/orders/:id/status', authorize('VENDOR'), updateOrderStatus);
 
 // ==========================================
-// 4. ADMIN & SUPER ADMIN RESTAURANT APPROVALS
+// 5. ADMIN & SUPER ADMIN RESTAURANT APPROVALS
 // ==========================================
 router.get('/admin/restaurants/pending', authorize('ADMIN', 'SUPERADMIN'), getPendingRestaurants);
 router.patch('/admin/restaurants/:id/status', authorize('ADMIN', 'SUPERADMIN'), updateRestaurantStatus);

@@ -60,8 +60,17 @@ export const getAdminOverviewData = async (req: Request, res: Response): Promise
             recentOrders,
             allYearOrders,
         ] = await Promise.all([
-            prisma.user.count().catch(() => 0),
-            prisma.user.count({ where: { createdAt: { lt: startDate } } }).catch(() => 0),
+            prisma.user.count({
+                where: {
+                    NOT: { email: { startsWith: 'purged_' } },
+                },
+            }).catch(() => 0),
+            prisma.user.count({
+                where: {
+                    createdAt: { lt: startDate },
+                    NOT: { email: { startsWith: 'purged_' } },
+                },
+            }).catch(() => 0),
             prisma.order.count({ where: { createdAt: { gte: startDate } } }).catch(() => 0),
             prisma.restaurant.count().catch(() => 0),
             prisma.restaurant.findMany({
@@ -221,7 +230,6 @@ export const getAdminAnalyticsData = async (req: Request, res: Response): Promis
             startDate = new Date(currentYear, 0, 1);
         }
 
-        // Fetch menus from whichever model name is present in your Prisma client
         const fetchAllMenus = async (): Promise<any[]> => {
             if ((prisma as any).menu) {
                 return (prisma as any).menu.findMany().catch(() => []);
@@ -251,10 +259,17 @@ export const getAdminAnalyticsData = async (req: Request, res: Response): Promis
                 select: { id: true, createdAt: true, total: true } as any,
             }).catch(() => []),
 
-            prisma.user.count().catch(() => 0),
+            prisma.user.count({
+                where: {
+                    NOT: { email: { startsWith: 'purged_' } },
+                },
+            }).catch(() => 0),
 
             prisma.user.count({
-                where: { createdAt: { gte: startDate, lte: endDate } },
+                where: {
+                    createdAt: { gte: startDate, lte: endDate },
+                    NOT: { email: { startsWith: 'purged_' } },
+                },
             }).catch(() => 0),
 
             (prisma as any).orderItem?.findMany({
@@ -269,7 +284,6 @@ export const getAdminAnalyticsData = async (req: Request, res: Response): Promis
             fetchAllMenus(),
         ]);
 
-        // Build exact lookup structures for fast relational image mapping
         const menuLookupById = new Map<string, any>();
         const menuLookupByName = new Map<string, any>();
         const availableCloudinaryPool: string[] = [];
@@ -375,7 +389,6 @@ export const getAdminAnalyticsData = async (req: Request, res: Response): Promis
                 const name = String(matchedMenu.menuName || matchedMenu.name || lineName || 'Artisan Dish');
                 const category = String(matchedMenu.category || matchedMenu.cuisineCategory || matchedMenu.cuisine || line.category || 'Mains');
 
-                // Resolve real Cloudinary photo; if unlinked, pull directly from the active Cloudinary pool
                 let image = resolveItemImage(matchedMenu) || resolveItemImage(line);
                 if (!image && availableCloudinaryPool.length > 0) {
                     image = availableCloudinaryPool[index % availableCloudinaryPool.length] || '';
@@ -407,7 +420,6 @@ export const getAdminAnalyticsData = async (req: Request, res: Response): Promis
             });
         }
 
-        // Rank by unit price (high-price first) and guest rating
         let topMenuItems: AggItem[] = Object.values(itemAgg)
             .sort((a, b) => {
                 if (b.unitPrice !== a.unitPrice) return b.unitPrice - a.unitPrice;
@@ -416,7 +428,6 @@ export const getAdminAnalyticsData = async (req: Request, res: Response): Promis
             })
             .slice(0, 8);
 
-        // Fallback: If line items are not present, populate directly from your menu table
         if (topMenuItems.length === 0 && allDatabaseMenus.length > 0) {
             topMenuItems = [...allDatabaseMenus]
                 .sort((a: any, b: any) => Number(b.price || 0) - Number(a.price || 0))
@@ -433,7 +444,6 @@ export const getAdminAnalyticsData = async (req: Request, res: Response): Promis
                 }));
         }
 
-        // Make sure no item in the final top list is missing a Cloudinary image
         topMenuItems = topMenuItems.map((item, idx) => {
             if (!item.image && availableCloudinaryPool.length > 0) {
                 return {
@@ -444,7 +454,6 @@ export const getAdminAnalyticsData = async (req: Request, res: Response): Promis
             return item;
         });
 
-        // 7. Menu department & category yield
         const categoryMap: Record<string, number> = {};
         topMenuItems.forEach((item) => {
             const currentCatVal = categoryMap[item.category] ?? 0;
@@ -505,7 +514,267 @@ export const getAdminAnalyticsData = async (req: Request, res: Response): Promis
 };
 
 // ==========================================
-// 3. VENDOR OPERATIONAL HANDLERS
+// 3. USER MANAGEMENT & RBAC DIRECTORY
+// ==========================================
+export const getAdminUsers = async (req: Request, res: Response): Promise<void> => {
+    try {
+        const users = await prisma.user.findMany({
+            where: {
+                NOT: [
+                    { email: { startsWith: 'purged_' } },
+                    { name: { startsWith: '[Deactivated Account' } },
+                ],
+            },
+            select: {
+                id: true,
+                name: true,
+                email: true,
+                phone: true,
+                role: true,
+                avatarUrl: true,
+                createdAt: true,
+                updatedAt: true,
+                _count: {
+                    select: {
+                        orders: true,
+                    },
+                },
+            },
+            orderBy: { createdAt: 'desc' },
+        });
+
+        const formatted = users.map((u: any) => {
+            let rawAvatar = '';
+            if (typeof u.avatarUrl === 'string' && u.avatarUrl.trim() !== '') {
+                let cleaned = u.avatarUrl.trim();
+                if (cleaned.startsWith('//')) {
+                    cleaned = `https:${cleaned}`;
+                }
+                if (cleaned.startsWith('http://') || cleaned.startsWith('https://')) {
+                    rawAvatar = cleaned;
+                }
+            }
+
+            return {
+                id: u.id,
+                name: u.name || 'Unnamed User',
+                email: u.email,
+                phone: u.phone || '(313) 555-0100',
+                role: String(u.role || 'USER').toUpperCase(),
+                avatar: rawAvatar,
+                ordersCount: u._count?.orders ?? 0,
+                status: 'Active',
+                joinedDate: new Date(u.createdAt).toLocaleDateString('en-US', {
+                    day: 'numeric',
+                    month: 'short',
+                    year: 'numeric',
+                }),
+                lastActive: 'Active now',
+            };
+        });
+
+        res.status(200).json({
+            success: true,
+            totalUsers: formatted.length,
+            users: formatted,
+        });
+    } catch (error: any) {
+        console.error('Fetch Admin Users Error:', error);
+        res.status(500).json({
+            success: false,
+            message: error?.message || 'Failed to fetch directory from PostgreSQL',
+        });
+    }
+};
+
+export const updateUserRole = async (req: Request, res: Response): Promise<void> => {
+    try {
+        const id = String(req.params.id || '');
+        const { role } = req.body;
+
+        if (!id) {
+            res.status(400).json({ success: false, message: 'User ID parameter is required' });
+            return;
+        }
+
+        if (!role) {
+            res.status(400).json({ success: false, message: 'Role parameter is required' });
+            return;
+        }
+
+        const validRoles = ['USER', 'CUSTOMER', 'DINER', 'VENDOR', 'MANAGER', 'RESTAURANT_OWNER', 'ADMIN', 'SUPERADMIN'];
+        const normalizedRole = String(role).toUpperCase();
+
+        if (!validRoles.includes(normalizedRole)) {
+            res.status(400).json({ success: false, message: `Invalid role: ${role}` });
+            return;
+        }
+
+        const updated = await prisma.user.update({
+            where: { id },
+            data: { role: normalizedRole as any },
+            select: { id: true, name: true, email: true, role: true },
+        });
+
+        res.status(200).json({
+            success: true,
+            message: `User role successfully updated to ${normalizedRole}`,
+            user: updated,
+        });
+    } catch (error: any) {
+        console.error('Update Role Error:', error);
+        res.status(500).json({
+            success: false,
+            message: error?.message || 'Failed to update user role in PostgreSQL',
+        });
+    }
+};
+
+export const deleteUserAccount = async (req: Request, res: Response): Promise<void> => {
+    try {
+        const id = String(req.params.id || '');
+
+        if (!id) {
+            res.status(400).json({
+                success: false,
+                message: 'User ID is required.',
+            });
+            return;
+        }
+
+        // Prevent self-deletion
+        if (req.user && (req.user as any).id === id) {
+            res.status(400).json({
+                success: false,
+                message: 'Self-deletion is prohibited for the current administrative session.',
+            });
+            return;
+        }
+
+        const targetUser = await prisma.user.findUnique({
+            where: { id },
+            include: {
+                restaurant: {
+                    select: {
+                        id: true,
+                        orders: { select: { id: true }, take: 1 },
+                    },
+                },
+                orders: { select: { id: true }, take: 1 },
+            },
+        });
+
+        if (!targetUser) {
+            res.status(404).json({ success: false, message: 'User account not found.' });
+            return;
+        }
+
+        const currentRole = String(targetUser.role || 'USER').toUpperCase();
+        const isPrivileged = currentRole === 'ADMIN' ||
+            currentRole === 'SUPERADMIN' ||
+            currentRole === 'SUPER_ADMIN' ||
+            currentRole === 'VENDOR' ||
+            currentRole === 'RESTAURANT_OWNER' ||
+            currentRole === 'MANAGER';
+
+        // 1. PRIVILEGED ROLES (Vendor / Admin / Super Admin):
+        // Demote to Customer ('USER') instead of permanently deleting
+        if (isPrivileged) {
+            await prisma.$transaction(async (tx) => {
+                if (targetUser.restaurant?.id) {
+                    await (tx as any).restaurant?.update({
+                        where: { id: targetUser.restaurant.id },
+                        data: {
+                            status: 'INACTIVE',
+                            isOpen: false,
+                        },
+                    }).catch(() => null);
+                }
+
+                // Invalidate existing sessions for security
+                await (tx as any).session?.deleteMany({ where: { userId: id } }).catch(() => null);
+
+                // Demote role to customer (USER)
+                await tx.user.update({
+                    where: { id },
+                    data: {
+                        role: 'USER',
+                    },
+                });
+            });
+
+            res.status(200).json({
+                success: true,
+                message: `${targetUser.name} has been removed from privileged governance and converted to Customer (USER).`,
+            });
+            return;
+        }
+
+        // 2. CUSTOMER ROLES (USER / CUSTOMER / DINER):
+        // Permanently delete or anonymize to satisfy relational foreign key constraints
+        const hasCustomerOrders = Boolean(targetUser.orders && targetUser.orders.length > 0);
+        const hasRestaurantOrders = Boolean(targetUser.restaurant?.orders && targetUser.restaurant.orders.length > 0);
+
+        if (hasCustomerOrders || hasRestaurantOrders) {
+            // Relational constraints exist (orders); anonymize and hide from active directory
+            await prisma.$transaction(async (tx) => {
+                await (tx as any).cartItem?.deleteMany({ where: { userId: id } }).catch(() => null);
+                await (tx as any).favorite?.deleteMany({ where: { userId: id } }).catch(() => null);
+                await (tx as any).review?.deleteMany({ where: { userId: id } }).catch(() => null);
+                await (tx as any).session?.deleteMany({ where: { userId: id } }).catch(() => null);
+
+                await tx.user.update({
+                    where: { id },
+                    data: {
+                        name: `[Deactivated Account - ${id.slice(-6)}]`,
+                        email: `purged_${Date.now()}_${targetUser.email}`,
+                        role: 'USER',
+                        phone: null as any,
+                        avatarUrl: '' as any,
+                    },
+                });
+            });
+
+            res.status(200).json({
+                success: true,
+                message: 'Customer account permanently removed from directory.',
+            });
+            return;
+        }
+
+        // Clean permanent deletion when no order history is attached
+        await prisma.$transaction(async (tx) => {
+            if (targetUser.restaurant?.id) {
+                await (tx as any).menu?.deleteMany({ where: { restaurantId: targetUser.restaurant.id } }).catch(() => null);
+                await (tx as any).menuItem?.deleteMany({ where: { restaurantId: targetUser.restaurant.id } }).catch(() => null);
+                await (tx as any).restaurant.delete({ where: { id: targetUser.restaurant.id } }).catch(() => null);
+            }
+
+            await (tx as any).cartItem?.deleteMany({ where: { userId: id } }).catch(() => null);
+            await (tx as any).favorite?.deleteMany({ where: { userId: id } }).catch(() => null);
+            await (tx as any).review?.deleteMany({ where: { userId: id } }).catch(() => null);
+            await (tx as any).session?.deleteMany({ where: { userId: id } }).catch(() => null);
+
+            await tx.user.delete({
+                where: { id },
+            });
+        });
+
+        res.status(200).json({
+            success: true,
+            message: 'Customer account permanently purged from database.',
+        });
+    } catch (error: any) {
+        console.error('Delete User Controller Error:', error);
+        res.status(500).json({
+            success: false,
+            message: error?.message || 'Failed to process user deletion in PostgreSQL',
+        });
+    }
+};
+
+// ==========================================
+// 4. VENDOR OPERATIONAL HANDLERS
 // ==========================================
 export const getVendorOrders = async (req: Request, res: Response): Promise<void> => {
     try {
@@ -578,7 +847,7 @@ export const updateOrderStatus = async (req: Request, res: Response): Promise<vo
 };
 
 // ==========================================
-// 4. ADMIN RESTAURANT APPROVAL WORKFLOWS
+// 5. ADMIN RESTAURANT APPROVAL WORKFLOWS
 // ==========================================
 export const getPendingRestaurants = async (req: Request, res: Response): Promise<void> => {
     try {
