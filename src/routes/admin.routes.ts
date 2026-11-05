@@ -8,6 +8,7 @@ import {
     deleteUserAccount,
     getAdminReservations,
     updateReservationStatus,
+    getAdminTransactions,
     getVendorOrders,
     updateOrderStatus,
     getPendingRestaurants,
@@ -63,13 +64,21 @@ router.patch('/reservations/:id/status', authorize('ADMIN', 'SUPERADMIN'), updat
 router.patch('/admin/reservations/:id/status', authorize('ADMIN', 'SUPERADMIN'), updateReservationStatus);
 
 // ==========================================
-// 5. VENDOR FLOOR & ORDER ROUTES
+// 5. FINANCIAL LEDGER & GUEST SETTLEMENTS
+// ==========================================
+// Supports both path prefixes:
+// e.g., /api/v1/admin/transactions or /api/v1/transactions
+router.get('/transactions', authorize('ADMIN', 'SUPERADMIN'), getAdminTransactions);
+router.get('/admin/transactions', authorize('ADMIN', 'SUPERADMIN'), getAdminTransactions);
+
+// ==========================================
+// 6. VENDOR FLOOR & ORDER ROUTES
 // ==========================================
 router.get('/vendor/orders', authorize('VENDOR'), getVendorOrders);
 router.patch('/vendor/orders/:id/status', authorize('VENDOR'), updateOrderStatus);
 
 // ==========================================
-// 6. ADMIN & SUPER ADMIN RESTAURANT APPROVALS
+// 7. ADMIN & SUPER ADMIN RESTAURANT APPROVALS
 // ==========================================
 router.get('/admin/restaurants/pending', authorize('ADMIN', 'SUPERADMIN'), getPendingRestaurants);
 router.patch('/admin/restaurants/:id/status', authorize('ADMIN', 'SUPERADMIN'), updateRestaurantStatus);
