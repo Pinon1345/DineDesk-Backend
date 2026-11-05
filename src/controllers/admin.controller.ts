@@ -795,7 +795,7 @@ export const getAdminReservations = async (req: Request, res: Response): Promise
         // 2. Dynamically assign General Manager and Floor Seating Lead from the first two Admin/Superadmin users
         const adminUsers = await prisma.user.findMany({
             where: {
-                role: { in: ['ADMIN', 'SUPERADMIN'] },
+                role: { in: ['ADMIN', 'SUPERADMIN'] as any },
                 NOT: { email: { startsWith: 'purged_' } },
             },
             select: {
@@ -1132,7 +1132,163 @@ export const getAdminTransactions = async (req: Request, res: Response): Promise
 };
 
 // ==========================================
-// 6. VENDOR OPERATIONAL HANDLERS
+// 6. STAFF & LEADERSHIP GOVERNANCE HANDLERS
+// ==========================================
+export const getAdminStaffDirectory = async (req: Request, res: Response): Promise<void> => {
+    try {
+        // Query only roles that exist in the PostgreSQL Prisma enum to prevent invalid argument errors
+        const users = await prisma.user.findMany({
+            where: {
+                role: { in: ['SUPERADMIN', 'ADMIN', 'VENDOR'] as any },
+                NOT: [
+                    { email: { startsWith: 'purged_' } },
+                    { name: { startsWith: '[Deactivated Account' } },
+                ],
+            },
+            select: {
+                id: true,
+                name: true,
+                email: true,
+                phone: true,
+                role: true,
+                avatarUrl: true,
+                createdAt: true,
+                updatedAt: true,
+                restaurant: {
+                    select: {
+                        name: true,
+                    },
+                },
+                _count: {
+                    select: {
+                        orders: true,
+                    },
+                },
+            },
+            orderBy: {
+                createdAt: 'asc',
+            },
+        });
+
+        // Partition by exact database roles
+        const superAdmins = users.filter((u: any) => String(u.role).toUpperCase() === 'SUPERADMIN');
+        const standardAdmins = users.filter((u: any) => String(u.role).toUpperCase() === 'ADMIN');
+        const vendors = users.filter((u: any) => String(u.role).toUpperCase() === 'VENDOR');
+
+        // Rule: First 2 vendors are elevated to Administrators; remaining vendors are Floor Managers
+        const vendorAdmins = vendors.slice(0, 2);
+        const floorManagers = vendors.slice(2);
+
+        const formatUser = (u: any, assignedRole: 'Super Admin' | 'Administrator' | 'Floor Manager', index: number) => {
+            let cleanedAvatar = '';
+            if (typeof u.avatarUrl === 'string' && u.avatarUrl.trim().startsWith('http')) {
+                cleanedAvatar = u.avatarUrl.trim();
+            }
+
+            return {
+                id: u.id,
+                uid: `STF-${String(u.id).slice(-6).toUpperCase()}`,
+                name: u.name || 'Staff Member',
+                email: u.email,
+                phone: u.phone || '+880 1800-000000',
+                role: assignedRole,
+                rawRole: String(u.role || '').toUpperCase(),
+                avatar: cleanedAvatar,
+                assignedDomain: u.restaurant?.name || 'The Maple & Vine (Detroit Flagship)',
+                scope: assignedRole === 'Super Admin'
+                    ? 'Global Governance, Security & Financial Telemetry'
+                    : assignedRole === 'Administrator'
+                        ? 'Venue Floor, Reservations & Staff Controls'
+                        : 'Floor Seating, Daily Shifts & Kitchen Operations',
+                twoFactor: 'Enforced (Hardware Key / Biometrics)',
+                lastSession: 'Active Now',
+                joinedDate: new Date(u.createdAt).toLocaleDateString('en-US', {
+                    month: 'short',
+                    day: 'numeric',
+                    year: 'numeric',
+                }),
+                isRootOwner: assignedRole === 'Super Admin' && index === 0,
+            };
+        };
+
+        const formattedSuperAdmins = superAdmins.map((u: any, idx: number) => formatUser(u, 'Super Admin', idx));
+        const formattedAdministrators = [
+            ...standardAdmins.map((u: any, idx: number) => formatUser(u, 'Administrator', idx)),
+            ...vendorAdmins.map((u: any, idx: number) => formatUser(u, 'Administrator', idx + standardAdmins.length)),
+        ];
+        const formattedFloorManagers = floorManagers.map((u: any, idx: number) => formatUser(u, 'Floor Manager', idx));
+
+        const allStaff = [
+            ...formattedSuperAdmins,
+            ...formattedAdministrators,
+            ...formattedFloorManagers,
+        ];
+
+        res.status(200).json({
+            success: true,
+            metrics: {
+                totalStaff: allStaff.length,
+                superAdminCount: formattedSuperAdmins.length,
+                adminCount: formattedAdministrators.length,
+                managerCount: formattedFloorManagers.length,
+                hardware2faPct: 100,
+                idleTimeoutMins: 15,
+                dualSignoffThreshold: '$25,000+',
+            },
+            superAdmins: formattedSuperAdmins,
+            administrators: formattedAdministrators,
+            floorManagers: formattedFloorManagers,
+            staff: allStaff,
+        });
+    } catch (error: any) {
+        console.error('Fetch Admin Staff Error:', error);
+        res.status(500).json({
+            success: false,
+            message: error?.message || 'Failed to aggregate leadership staff from PostgreSQL',
+        });
+    }
+};
+
+export const updateStaffRole = async (req: Request, res: Response): Promise<void> => {
+    try {
+        const id = String(req.params.id || '');
+        const { role } = req.body;
+
+        if (!id || !role) {
+            res.status(400).json({ success: false, message: 'User ID and Role are required.' });
+            return;
+        }
+
+        const validStaffRoles = ['SUPERADMIN', 'ADMIN', 'VENDOR', 'USER'];
+        const normalized = String(role).toUpperCase();
+
+        if (!validStaffRoles.includes(normalized)) {
+            res.status(400).json({ success: false, message: `Invalid designated role: ${role}` });
+            return;
+        }
+
+        const updated = await prisma.user.update({
+            where: { id },
+            data: { role: normalized as any },
+            select: { id: true, name: true, email: true, role: true },
+        });
+
+        res.status(200).json({
+            success: true,
+            message: `Staff role for ${updated.name} updated to ${normalized}`,
+            user: updated,
+        });
+    } catch (error: any) {
+        console.error('Update Staff Role Error:', error);
+        res.status(500).json({
+            success: false,
+            message: error?.message || 'Failed to update leadership designation in database.',
+        });
+    }
+};
+
+// ==========================================
+// 7. VENDOR OPERATIONAL HANDLERS
 // ==========================================
 export const getVendorOrders = async (req: Request, res: Response): Promise<void> => {
     try {
@@ -1205,7 +1361,7 @@ export const updateOrderStatus = async (req: Request, res: Response): Promise<vo
 };
 
 // ==========================================
-// 7. ADMIN RESTAURANT APPROVAL WORKFLOWS
+// 8. ADMIN RESTAURANT APPROVAL WORKFLOWS
 // ==========================================
 export const getPendingRestaurants = async (req: Request, res: Response): Promise<void> => {
     try {

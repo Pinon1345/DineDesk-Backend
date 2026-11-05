@@ -9,6 +9,8 @@ import {
     getAdminReservations,
     updateReservationStatus,
     getAdminTransactions,
+    getAdminStaffDirectory,
+    updateStaffRole,
     getVendorOrders,
     updateOrderStatus,
     getPendingRestaurants,
@@ -72,13 +74,24 @@ router.get('/transactions', authorize('ADMIN', 'SUPERADMIN'), getAdminTransactio
 router.get('/admin/transactions', authorize('ADMIN', 'SUPERADMIN'), getAdminTransactions);
 
 // ==========================================
-// 6. VENDOR FLOOR & ORDER ROUTES
+// 6. EXECUTIVE STAFF & LEADERSHIP GOVERNANCE
+// ==========================================
+// Supports both path prefixes:
+// e.g., /api/v1/admin/staff or /api/v1/staff
+router.get('/staff', authorize('ADMIN', 'SUPERADMIN'), getAdminStaffDirectory);
+router.get('/admin/staff', authorize('ADMIN', 'SUPERADMIN'), getAdminStaffDirectory);
+
+router.patch('/staff/:id/role', authorize('ADMIN', 'SUPERADMIN'), updateStaffRole);
+router.patch('/admin/staff/:id/role', authorize('ADMIN', 'SUPERADMIN'), updateStaffRole);
+
+// ==========================================
+// 7. VENDOR FLOOR & ORDER ROUTES
 // ==========================================
 router.get('/vendor/orders', authorize('VENDOR'), getVendorOrders);
 router.patch('/vendor/orders/:id/status', authorize('VENDOR'), updateOrderStatus);
 
 // ==========================================
-// 7. ADMIN & SUPER ADMIN RESTAURANT APPROVALS
+// 8. ADMIN & SUPER ADMIN RESTAURANT APPROVALS
 // ==========================================
 router.get('/admin/restaurants/pending', authorize('ADMIN', 'SUPERADMIN'), getPendingRestaurants);
 router.patch('/admin/restaurants/:id/status', authorize('ADMIN', 'SUPERADMIN'), updateRestaurantStatus);
