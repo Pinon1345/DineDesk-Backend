@@ -87,7 +87,7 @@ app.use('/api/v1/webhook', webhookRoutes);
 
 // Eighthly, mount the admin routes after the webhook routes
 
-app.use('/api/v1', adminRoutes);
+// adminRoutes mounted after reservationRoutes
 
 // Ninthly, mount the user routes after the admin routes
 
@@ -96,6 +96,7 @@ app.use('/api/v1/users', userRoutes);
 // Tenthly, mount the reservation routes after the user routes
 
 app.use('/api/v1/reservations', reservationRoutes);
+app.use('/api/v1', adminRoutes);
 
 // mount the favorite routes after the user routes
 

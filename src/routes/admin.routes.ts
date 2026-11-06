@@ -61,10 +61,10 @@ router.delete('/admin/users/:id', authorize('ADMIN', 'SUPERADMIN'), deleteUserAc
 // ==========================================
 // Supports both path prefixes:
 // e.g., /api/v1/admin/reservations or /api/v1/reservations
-router.get('/reservations', authorize('ADMIN', 'SUPERADMIN'), getAdminReservations);
+// router.get('/reservations', authorize('ADMIN', 'SUPERADMIN'), getAdminReservations);
 router.get('/admin/reservations', authorize('ADMIN', 'SUPERADMIN'), getAdminReservations);
 
-router.patch('/reservations/:id/status', authorize('ADMIN', 'SUPERADMIN'), updateReservationStatus);
+// router.patch('/reservations/:id/status', authorize('ADMIN', 'SUPERADMIN'), updateReservationStatus);
 router.patch('/admin/reservations/:id/status', authorize('ADMIN', 'SUPERADMIN'), updateReservationStatus);
 
 // ==========================================
