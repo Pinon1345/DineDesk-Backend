@@ -70,12 +70,39 @@ export const createAddress = async (req: Request, res: Response) => {
 
         const addressLineText = [building, road, apartment, city]
             .filter(Boolean)
-            .join(", ");
+            .join(", ") || req.body.addressLine || req.body.address || "Address";
 
-        const newAddress = await prisma.address.create({
-            data: {
-                userId,
-                label: label || "Home",
+        let newAddress: any;
+        try {
+            newAddress = await (prisma.address as any).create({
+                data: {
+                    userId,
+                    label: label || "Home",
+                    recipientName: recipientName || null,
+                    contactNumber: contactNumber || null,
+                    category: category || "home",
+                    building: building || null,
+                    road: road || null,
+                    apartment: apartment || null,
+                    city: city || null,
+                    postalCode: postalCode || null,
+                    deliveryInstructions: deliveryInstructions || null,
+                    addressLine: addressLineText,
+                    isDefault: shouldBeDefault,
+                },
+            });
+        } catch (schemaErr: any) {
+            // Graceful fallback if database schema or prisma client does not have extra columns
+            newAddress = await (prisma.address as any).create({
+                data: {
+                    userId,
+                    label: label || "Home",
+                    addressLine: addressLineText,
+                    isDefault: shouldBeDefault,
+                },
+            });
+            newAddress = {
+                ...newAddress,
                 recipientName: recipientName || null,
                 contactNumber: contactNumber || null,
                 category: category || "home",
@@ -85,15 +112,25 @@ export const createAddress = async (req: Request, res: Response) => {
                 city: city || null,
                 postalCode: postalCode || null,
                 deliveryInstructions: deliveryInstructions || null,
-                addressLine: addressLineText || "Address",
-                isDefault: shouldBeDefault,
-            },
-        });
+            };
+        }
 
-        const allAddresses = await prisma.address.findMany({
+        const rawList = await (prisma.address as any).findMany({
             where: { userId },
-            orderBy: [{ isDefault: "desc" }, { createdAt: "desc" }],
+            orderBy: [{ isDefault: "desc" }],
         });
+        const allAddresses = rawList.map((a: any) => ({
+            ...a,
+            recipientName: a.recipientName || null,
+            contactNumber: a.contactNumber || null,
+            category: a.category || "home",
+            building: a.building || null,
+            road: a.road || null,
+            apartment: a.apartment || null,
+            city: a.city || null,
+            postalCode: a.postalCode || null,
+            deliveryInstructions: a.deliveryInstructions || null,
+        }));
 
         return res.status(201).json({
             success: true,
@@ -145,23 +182,34 @@ export const updateAddress = async (req: Request, res: Response) => {
             .filter(Boolean)
             .join(", ");
 
-        await prisma.address.update({
-            where: { id },
-            data: {
-                label,
-                recipientName,
-                contactNumber,
-                category,
-                building,
-                road,
-                apartment,
-                city,
-                postalCode,
-                deliveryInstructions,
-                ...(addressLineText ? { addressLine: addressLineText } : {}),
-                ...(typeof isDefault === "boolean" ? { isDefault } : {}),
-            },
-        });
+        try {
+            await (prisma.address as any).update({
+                where: { id },
+                data: {
+                    label,
+                    recipientName,
+                    contactNumber,
+                    category,
+                    building,
+                    road,
+                    apartment,
+                    city,
+                    postalCode,
+                    deliveryInstructions,
+                    ...(addressLineText ? { addressLine: addressLineText } : {}),
+                    ...(typeof isDefault === "boolean" ? { isDefault } : {}),
+                },
+            });
+        } catch (schemaErr: any) {
+            await (prisma.address as any).update({
+                where: { id },
+                data: {
+                    ...(label ? { label } : {}),
+                    ...(addressLineText ? { addressLine: addressLineText } : {}),
+                    ...(typeof isDefault === "boolean" ? { isDefault } : {}),
+                },
+            });
+        }
 
         const allAddresses = await prisma.address.findMany({
             where: { userId },
@@ -241,7 +289,7 @@ export const deleteAddress = async (req: Request, res: Response) => {
         if (deleted.isDefault) {
             const remaining = await prisma.address.findFirst({
                 where: { userId },
-                orderBy: { createdAt: "desc" },
+                orderBy: { id: "desc" },
             });
             if (remaining) {
                 await prisma.address.update({

@@ -120,7 +120,7 @@ export const createOrder = async (req: Request, res: Response): Promise<void> =>
         const total = subtotal - discount + deliveryFee;
         const pointsToAward = 20;
 
-        // 6. STRIPE FLOW: Checkout session created without clearing cart until verified
+        // 6. STRIPE FLOW: Embedded PaymentIntent created without clearing cart until verified
         if (paymentMethod === 'STRIPE') {
             const draftOrder = await prisma.order.create({
                 data: {
@@ -162,36 +162,35 @@ export const createOrder = async (req: Request, res: Response): Promise<void> =>
                 },
             });
 
-            // Redirects to /order-confirmation with order_id and session_id query params
-            const session = await stripe.checkout.sessions.create({
-                line_items: cartItems.map((item) => ({
-                    price_data: {
-                        currency: 'usd',
-                        product_data: { name: item.name },
-                        unit_amount: Math.round(Number(item.price) * 100),
-                    },
-                    quantity: item.quantity,
-                })),
-                mode: 'payment',
-                success_url: `${env.FRONTEND_URL || 'http://localhost:3000'}/order-confirmation?order_id=${draftOrder.id}&session_id={CHECKOUT_SESSION_ID}`,
-                cancel_url: `${env.FRONTEND_URL || 'http://localhost:3000'}/explore?payment=cancelled`,
+            // Create Stripe PaymentIntent for embedded Stripe Payment Element
+            const paymentIntent = await stripe.paymentIntents.create({
+                amount: Math.max(50, Math.round(total * 100)), // minimum $0.50 USD
+                currency: 'usd',
+                automatic_payment_methods: { enabled: true },
                 metadata: {
                     orderId: draftOrder.id,
                     userId: req.user.id,
+                    restaurantId,
                 },
-            } as any);
+                description: `DineDesk Order #${draftOrder.id}`,
+            });
 
             await prisma.order.update({
                 where: { id: draftOrder.id },
-                data: { stripeSessionId: session.id },
+                data: { stripeSessionId: paymentIntent.id },
             });
 
             res.status(201).json({
                 success: true,
-                message: 'Stripe checkout session initialized',
+                message: 'Stripe PaymentIntent initialized',
                 data: {
                     order: draftOrder,
-                    stripeSessionUrl: session.url,
+                    clientSecret: paymentIntent.client_secret,
+                    paymentIntentId: paymentIntent.id,
+                    total,
+                    subtotal,
+                    deliveryFee,
+                    discount,
                 },
             });
             return;
@@ -265,13 +264,13 @@ export const createOrder = async (req: Request, res: Response): Promise<void> =>
     }
 };
 
-// Confirm Stripe Payment: Verifies Stripe session, marks PAID, awards loyalty points, and clears cart
+// Confirm Stripe Payment: Verifies Stripe session or PaymentIntent, marks PAID, awards loyalty points, and clears cart
 export const confirmStripePayment = async (req: Request, res: Response): Promise<void> => {
     try {
-        const { sessionId, orderId } = req.body;
+        const { sessionId, orderId, paymentIntentId } = req.body;
 
-        if (!sessionId && !orderId) {
-            res.status(400).json({ success: false, message: 'Session ID or Order ID is required' });
+        if (!sessionId && !orderId && !paymentIntentId) {
+            res.status(400).json({ success: false, message: 'PaymentIntent ID, Session ID, or Order ID is required' });
             return;
         }
 
@@ -281,25 +280,39 @@ export const confirmStripePayment = async (req: Request, res: Response): Promise
                 OR: [
                     orderId ? { id: String(orderId) } : undefined,
                     sessionId ? { stripeSessionId: String(sessionId) } : undefined,
+                    paymentIntentId ? { stripeSessionId: String(paymentIntentId) } : undefined,
                 ].filter(Boolean) as any,
             },
         });
 
-        // 2. Fallback search via Stripe session metadata if order wasn't found by direct ID
-        const targetSessionId = sessionId || order?.stripeSessionId;
+        // 2. Resolve Stripe verification through PaymentIntent or Checkout Session
+        const targetId = paymentIntentId || sessionId || order?.stripeSessionId;
+        let isPaid = false;
+        let retrievedPaymentIntent: Stripe.PaymentIntent | null = null;
         let stripeSession: Stripe.Checkout.Session | null = null;
 
-        if (targetSessionId) {
-            try {
-                stripeSession = await stripe.checkout.sessions.retrieve(String(targetSessionId));
-            } catch (stripeErr) {
-                console.error('Error retrieving stripe session:', stripeErr);
+        if (targetId) {
+            if (String(targetId).startsWith('pi_')) {
+                try {
+                    retrievedPaymentIntent = await stripe.paymentIntents.retrieve(String(targetId));
+                    isPaid = retrievedPaymentIntent.status === 'succeeded';
+                } catch (piErr) {
+                    console.error('Error retrieving stripe payment intent:', piErr);
+                }
+            } else {
+                try {
+                    stripeSession = await stripe.checkout.sessions.retrieve(String(targetId));
+                    isPaid = stripeSession.payment_status === 'paid';
+                } catch (stripeErr) {
+                    console.error('Error retrieving stripe session:', stripeErr);
+                }
             }
         }
 
-        if (!order && stripeSession?.metadata?.orderId) {
+        if (!order && (retrievedPaymentIntent?.metadata?.orderId || stripeSession?.metadata?.orderId)) {
+            const metaOrderId = retrievedPaymentIntent?.metadata?.orderId || stripeSession?.metadata?.orderId;
             order = await prisma.order.findUnique({
-                where: { id: String(stripeSession.metadata.orderId) },
+                where: { id: String(metaOrderId) },
             });
         }
 
@@ -318,9 +331,6 @@ export const confirmStripePayment = async (req: Request, res: Response): Promise
             return;
         }
 
-        // 4. Verify payment status directly with Stripe
-        const isPaid = stripeSession?.payment_status === 'paid';
-
         if (!isPaid) {
             res.status(400).json({
                 success: false,
@@ -331,6 +341,7 @@ export const confirmStripePayment = async (req: Request, res: Response): Promise
 
         // 5. Atomic commit: Set order to PAID, award loyalty points, and clear database cart items
         const pointsAward = order.pointsEarned || 20;
+        const resolvedStripeId = retrievedPaymentIntent?.id || stripeSession?.id || String(targetId);
 
         const [updatedOrder, updatedUser] = await prisma.$transaction([
             prisma.order.update({
@@ -338,7 +349,7 @@ export const confirmStripePayment = async (req: Request, res: Response): Promise
                 data: {
                     paymentStatus: 'PAID',
                     status: 'PENDING',
-                    stripeSessionId: targetSessionId ? String(targetSessionId) : order.stripeSessionId,
+                    stripeSessionId: resolvedStripeId,
                 },
                 include: {
                     items: true,
@@ -360,6 +371,24 @@ export const confirmStripePayment = async (req: Request, res: Response): Promise
                 select: { id: true, loyaltyPoints: true },
             }),
         ]);
+
+        // Record transaction idempotently
+        const existingTx = await prisma.transaction.findFirst({
+            where: { orderId: order.id, stripePaymentId: resolvedStripeId },
+        });
+        if (!existingTx) {
+            await prisma.transaction.create({
+                data: {
+                    userId: order.userId,
+                    orderId: order.id,
+                    type: 'ORDER_PAYMENT',
+                    method: 'STRIPE',
+                    status: 'SUCCESS',
+                    amount: Number(order.total),
+                    stripePaymentId: resolvedStripeId,
+                },
+            }).catch(() => null);
+        }
 
         await prisma.cartItem.deleteMany({ where: { userId: order.userId } }).catch(() => { });
 

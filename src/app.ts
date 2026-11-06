@@ -32,10 +32,15 @@ const allowedOrigins = [
 app.use(
     cors({
         origin: (origin, callback) => {
-
             // Allow requests with no origin (e.g. mobile apps, curl, server-to-server)
-
-            if (!origin || allowedOrigins.includes(origin)) {
+            if (
+                !origin ||
+                allowedOrigins.includes(origin) ||
+                origin.startsWith("http://192.168.") ||
+                origin.startsWith("http://10.") ||
+                origin.startsWith("http://172.") ||
+                origin.startsWith("http://localhost:")
+            ) {
                 callback(null, true);
             } else {
                 callback(new Error("Not allowed by CORS"));
@@ -46,7 +51,14 @@ app.use(
 );
 
 app.use(morgan('dev'));
-app.use(express.json({ limit: "25mb" }));
+app.use(
+    express.json({
+        limit: "25mb",
+        verify: (req: any, _res, buf) => {
+            req.rawBody = buf;
+        },
+    })
+);
 app.use(express.urlencoded({ limit: "25mb", extended: true }));
 app.use(cookieParser());
 
@@ -87,7 +99,7 @@ app.use('/api/v1/webhook', webhookRoutes);
 
 // Eighthly, mount the admin routes after the webhook routes
 
-app.use('/api/v1', adminRoutes);
+// adminRoutes mounted after reservationRoutes
 
 // Ninthly, mount the user routes after the admin routes
 
@@ -96,6 +108,7 @@ app.use('/api/v1/users', userRoutes);
 // Tenthly, mount the reservation routes after the user routes
 
 app.use('/api/v1/reservations', reservationRoutes);
+app.use('/api/v1', adminRoutes);
 
 // mount the favorite routes after the user routes
 

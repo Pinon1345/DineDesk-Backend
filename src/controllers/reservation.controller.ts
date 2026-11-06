@@ -44,6 +44,7 @@ function extractTableIndex(tableVal?: string | number | null): number | null {
 export const getCustomerReservations = async (req: Request, res: Response): Promise<void> => {
     try {
         let userId = (req as any).user?.id || (req as any).user?.userId;
+        let userEmail = (req as any).user?.email || (req.headers['x-user-email'] as string);
 
         if (!userId) {
             const authHeader = req.headers.authorization;
@@ -59,19 +60,35 @@ export const getCustomerReservations = async (req: Request, res: Response): Prom
                     const secret = process.env.JWT_SECRET || "super secret jwt key change this";
                     const decoded: any = jwt.verify(token, secret);
                     userId = decoded.id || decoded.userId || decoded._id;
+                    if (!userEmail && decoded.email) userEmail = decoded.email;
                 } catch (err: any) {
                     console.error("JWT Verification Error on Vercel:", err.message);
                 }
             }
         }
 
-        if (!userId) {
+        if (!userId && userEmail) {
+            const foundUser = await prisma.user.findUnique({ where: { email: userEmail } });
+            if (foundUser) userId = foundUser.id;
+        }
+
+        if (!userId && !userEmail) {
             res.status(401).json({ success: false, message: "Unauthorized: No valid user session found" });
             return;
         }
 
         const reservations = await prisma.reservation.findMany({
-            where: { userId },
+            where: {
+                OR: [
+                    ...(userId ? [{ userId }] : []),
+                    ...(userEmail ? [{ user: { email: userEmail } }] : []),
+                ],
+            },
+            include: {
+                restaurant: {
+                    select: { id: true, name: true, coverUrl: true, address: true, cuisine: true },
+                },
+            },
             orderBy: { createdAt: "desc" },
         });
 
@@ -82,7 +99,6 @@ export const getCustomerReservations = async (req: Request, res: Response): Prom
     }
 };
 
-// Create a new reservation
 export const createReservation = async (req: Request, res: Response): Promise<void> => {
     try {
         let userId = (req as any).user?.id || (req as any).user?.userId;
@@ -309,9 +325,11 @@ export const getVendorHolds = async (req: Request, res: Response): Promise<void>
             return;
         }
 
+        const dateQuery = (req.query.date as string) || (req.query.targetDate as string);
         let holds = await prisma.reservation.findMany({
             where: {
                 restaurantId: restaurant.id,
+                ...(dateQuery ? { date: dateQuery.trim() } : {}),
             },
             include: {
                 user: {
@@ -448,10 +466,17 @@ export const getVendorFloorTables = async (req: Request, res: Response): Promise
             return numA - numB;
         });
 
-        // Fetch all reservations across DB
+        // Extract optional date filter (defaults to today's date if not provided)
+        const queryDate = (req.query.date as string) || (req.query.targetDate as string);
+        const todayYMD = new Date().toISOString().split("T")[0];
+        const selectedDate = queryDate ? queryDate.trim() : todayYMD;
+        const isSelectedToday = selectedDate === todayYMD;
+
+        // Fetch reservations for the selected date
         let allReservations = await prisma.reservation.findMany({
             where: {
                 restaurantId,
+                date: selectedDate,
             },
             include: {
                 user: {
@@ -462,8 +487,11 @@ export const getVendorFloorTables = async (req: Request, res: Response): Promise
         });
 
         // Cross-venue fallback if isolated
-        if (allReservations.length < 5) {
+        if (allReservations.length === 0) {
             const fallbackReservations = await prisma.reservation.findMany({
+                where: {
+                    date: selectedDate,
+                },
                 include: {
                     user: {
                         select: { id: true, name: true, phone: true, avatarUrl: true },
@@ -471,7 +499,7 @@ export const getVendorFloorTables = async (req: Request, res: Response): Promise
                 },
                 orderBy: { createdAt: "desc" },
             });
-            if (fallbackReservations.length > allReservations.length) {
+            if (fallbackReservations.length > 0) {
                 allReservations = fallbackReservations;
             }
         }
@@ -535,7 +563,7 @@ export const getVendorFloorTables = async (req: Request, res: Response): Promise
                 }
             }
 
-            let status = (tbl.status || "AVAILABLE").toLowerCase();
+            let status: "available" | "occupied" | "reserved" = "available";
             let currentGuest: string | null = null;
             let currentReservationId: string | null = null;
             let partySize = tbl.capacity;
@@ -547,6 +575,12 @@ export const getVendorFloorTables = async (req: Request, res: Response): Promise
                 currentGuest = matched.user?.name || (matched as any).guestName || (matched as any).reservedFor || "Registered Diner";
                 currentReservationId = matched.id;
                 partySize = matched.partySize;
+            } else if (isSelectedToday) {
+                // Only for today do physical table overrides (manual walk-ins / manual holds) persist
+                const rawStatus = (tbl.status || "AVAILABLE").toLowerCase();
+                if (rawStatus === "occupied" || rawStatus === "reserved") {
+                    status = rawStatus as any;
+                }
             }
 
             return {
@@ -557,7 +591,7 @@ export const getVendorFloorTables = async (req: Request, res: Response): Promise
                 section: tableSection,
                 capacity: tbl.capacity,
                 shape: tbl.shape,
-                status: status as "available" | "occupied" | "reserved",
+                status,
                 currentGuest,
                 currentReservationId,
                 partySize,
@@ -567,6 +601,7 @@ export const getVendorFloorTables = async (req: Request, res: Response): Promise
         res.status(200).json({
             success: true,
             restaurantName,
+            selectedDate,
             totalTables: populatedFloor.length,
             tables: populatedFloor,
         });
