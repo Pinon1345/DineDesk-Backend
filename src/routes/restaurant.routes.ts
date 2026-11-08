@@ -7,6 +7,8 @@ import {
     getMyRestaurant,
     getVendorRestaurantProfile,
     updateVendorRestaurantProfile,
+    getKitchenStatus,
+    updateKitchenStatus,
 } from '../controllers/restaurant.controller.js';
 
 import { createRestaurantSchema } from '../validations/restaurant.validation.js';
@@ -17,8 +19,23 @@ import { authenticate } from '../middlewares/authenticate.js';
 const router = Router();
 
 // ==========================================
-// VENDOR PORTAL ROUTES
+// KITCHEN STATUS SYNC ROUTES (POSTGRESQL BACKED)
 // Registered BEFORE /:id to prevent routing collisions
+// ==========================================
+
+// GET /api/v1/restaurants/kitchen-status - Public endpoint for clients/customers to check live kitchen state
+router.get('/kitchen-status', getKitchenStatus);
+
+// PATCH /api/v1/restaurants/kitchen-status - Vendor/Manager endpoint to toggle kitchen open/paused globally
+router.patch(
+    '/kitchen-status',
+    authenticate,
+    authorize('VENDOR', 'ADMIN'),
+    updateKitchenStatus
+);
+
+// ==========================================
+// VENDOR PORTAL ROUTES
 // ==========================================
 
 // GET /api/v1/restaurants/vendor/profile - Fetch real restaurant profile from database

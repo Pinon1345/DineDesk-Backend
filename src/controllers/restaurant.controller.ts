@@ -117,6 +117,71 @@ export const getRestaurantById = async (req: Request, res: Response): Promise<vo
 };
 
 // =========================================================================
+// VENDOR KITCHEN OPEN/CLOSED STATUS CONTROLLERS (POSTGRESQL SYNCED)
+// =========================================================================
+
+export const getKitchenStatus = async (req: Request, res: Response): Promise<void> => {
+    try {
+        const userId = resolveUserId(req);
+        let restaurant = null;
+
+        if (userId) {
+            restaurant = await prisma.restaurant.findUnique({ where: { ownerId: userId } });
+        }
+
+        if (!restaurant) {
+            restaurant = await prisma.restaurant.findFirst();
+        }
+
+        if (!restaurant) {
+            res.status(404).json({ success: false, message: 'Restaurant not found' });
+            return;
+        }
+
+        res.status(200).json({ success: true, isOpen: restaurant.isOpen });
+    } catch (error: any) {
+        console.error('Get kitchen status error:', error);
+        res.status(500).json({ success: false, message: error.message || 'Internal server error' });
+    }
+};
+
+export const updateKitchenStatus = async (req: Request, res: Response): Promise<void> => {
+    try {
+        const userId = resolveUserId(req);
+        const { isOpen, isAcceptingOrders } = req.body;
+        const newStatus = typeof isOpen === 'boolean' ? isOpen : Boolean(isAcceptingOrders);
+
+        let restaurant = null;
+        if (userId) {
+            restaurant = await prisma.restaurant.findUnique({ where: { ownerId: userId } });
+        }
+
+        if (!restaurant) {
+            restaurant = await prisma.restaurant.findFirst();
+        }
+
+        if (!restaurant) {
+            res.status(404).json({ success: false, message: 'Restaurant not found in database' });
+            return;
+        }
+
+        const updated = await prisma.restaurant.update({
+            where: { id: restaurant.id },
+            data: { isOpen: newStatus },
+        });
+
+        res.status(200).json({
+            success: true,
+            message: 'Kitchen status updated successfully in PostgreSQL',
+            isOpen: updated.isOpen,
+        });
+    } catch (error: any) {
+        console.error('Update kitchen status error:', error);
+        res.status(500).json({ success: false, message: error.message || 'Failed to update kitchen status' });
+    }
+};
+
+// =========================================================================
 // VENDOR RESTAURANT SETTINGS & PROFILE CONTROLLERS (100% POSTGRESQL)
 // =========================================================================
 
@@ -251,7 +316,6 @@ export const updateVendorRestaurantProfile = async (req: Request, res: Response)
         }
 
         // 8. Build valid object strictly conforming to Prisma Restaurant model
-        // NOTE: phone and contactEmail are excluded because they are not scalar fields on the Restaurant model
         const validPrismaData: any = {
             name: name !== undefined ? name : restaurant.name,
             description: resolvedDescription,
