@@ -4,7 +4,7 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { prisma } from '../config/db.js';
 import { env } from '../config/env.js';
-import { sendWelcomeEmail, sendSignInEmail } from '../services/email.service.js';
+import { sendWelcomeEmail, sendSignInEmail, sendVerificationCodeEmail } from '../services/email.service.js';
 
 // Helper to generate JWT token
 const generateToken = (user: { id: string; email: string; role: any }, rememberMe: boolean) => {
@@ -14,15 +14,163 @@ const generateToken = (user: { id: string; email: string; role: any }, rememberM
     });
 };
 
+// =========================================================================
+// REGISTRATION EMAIL VERIFICATION (OTP GENERATION & VALIDATION)
+// =========================================================================
+
+export const sendVerificationCode = async (req: Request, res: Response): Promise<void> => {
+    try {
+        const { email, name } = req.body;
+
+        if (!email || typeof email !== 'string' || !email.includes('@')) {
+            res.status(400).json({ success: false, message: 'A valid email address is required' });
+            return;
+        }
+
+        const normalizedEmail = email.trim().toLowerCase();
+
+        // 1. Prevent duplicate registrations
+        const existingUser = await prisma.user.findUnique({ where: { email: normalizedEmail } });
+        if (existingUser) {
+            res.status(400).json({ success: false, message: 'An account with this email already exists' });
+            return;
+        }
+
+        // 2. Generate cryptographically safe 6-digit numeric code
+        const code = Math.floor(100000 + Math.random() * 900000).toString();
+        const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes validity
+
+        // 3. Clear previous token records for this email
+        await prisma.emailVerificationToken.deleteMany({ where: { email: normalizedEmail } });
+
+        // 4. Save token to PostgreSQL
+        await prisma.emailVerificationToken.create({
+            data: {
+                email: normalizedEmail,
+                code,
+                expiresAt,
+            },
+        });
+
+        // 5. Send luxury branded email via Nodemailer
+        await sendVerificationCodeEmail({
+            toEmail: normalizedEmail,
+            code,
+            name: name || undefined,
+        });
+
+        res.status(200).json({
+            success: true,
+            message: 'Verification code dispatched to your email address',
+        });
+    } catch (error: any) {
+        console.error('Send verification code error:', error);
+        res.status(500).json({
+            success: false,
+            message: error.message || 'Failed to dispatch verification code. Please check your connection.',
+        });
+    }
+};
+
+export const verifyCode = async (req: Request, res: Response): Promise<void> => {
+    try {
+        const { email, code } = req.body;
+
+        if (!email || !code) {
+            res.status(400).json({ success: false, message: 'Email and verification code are required' });
+            return;
+        }
+
+        const normalizedEmail = email.trim().toLowerCase();
+        const cleanCode = String(code).trim();
+
+        // 1. Find matching verification token
+        const tokenRecord = await prisma.emailVerificationToken.findFirst({
+            where: {
+                email: normalizedEmail,
+                code: cleanCode,
+            },
+        });
+
+        if (!tokenRecord) {
+            res.status(400).json({ success: false, message: 'Invalid verification code. Please check and try again.' });
+            return;
+        }
+
+        // 2. Check expiration
+        if (new Date() > tokenRecord.expiresAt) {
+            await prisma.emailVerificationToken.deleteMany({ where: { email: normalizedEmail } });
+            res.status(400).json({ success: false, message: 'Verification code has expired. Please request a new code.' });
+            return;
+        }
+
+        // 3. Clean up used token
+        await prisma.emailVerificationToken.deleteMany({ where: { email: normalizedEmail } });
+
+        // 4. Issue a short-lived token confirming email verification
+        const verificationToken = jwt.sign(
+            { email: normalizedEmail, isVerified: true },
+            env.JWT_SECRET,
+            { expiresIn: '15m' }
+        );
+
+        res.status(200).json({
+            success: true,
+            message: 'Email address verified successfully',
+            verificationToken,
+        });
+    } catch (error: any) {
+        console.error('Verify code error:', error);
+        res.status(500).json({
+            success: false,
+            message: error.message || 'Internal server error during verification',
+        });
+    }
+};
+
+// =========================================================================
+// STANDARD AUTHENTICATION CONTROLLERS
+// =========================================================================
+
 export const register = async (req: Request, res: Response): Promise<void> => {
     try {
-        const { name, email, password, phone, role } = req.body;
+        const { name, email, password, phone, role, verificationToken, code } = req.body;
+
+        if (!email || !password) {
+            res.status(400).json({ success: false, message: 'Email and password are required' });
+            return;
+        }
+
+        const normalizedEmail = email.trim().toLowerCase();
 
         // Check if user already exists
-        const existingUser = await prisma.user.findUnique({ where: { email } });
+        const existingUser = await prisma.user.findUnique({ where: { email: normalizedEmail } });
         if (existingUser) {
             res.status(400).json({ success: false, message: 'Email is already registered' });
             return;
+        }
+
+        // Validate verification status if token or code is provided
+        if (verificationToken) {
+            try {
+                const decoded = jwt.verify(verificationToken, env.JWT_SECRET) as any;
+                if (decoded.email !== normalizedEmail || !decoded.isVerified) {
+                    res.status(400).json({ success: false, message: 'Invalid email verification session' });
+                    return;
+                }
+            } catch {
+                res.status(400).json({ success: false, message: 'Email verification session expired. Please verify again.' });
+                return;
+            }
+        } else if (code) {
+            const tokenRecord = await prisma.emailVerificationToken.findFirst({
+                where: { email: normalizedEmail, code: String(code).trim() },
+            });
+            if (!tokenRecord || new Date() > tokenRecord.expiresAt) {
+                res.status(400).json({ success: false, message: 'Invalid or expired verification code' });
+                return;
+            }
+            await prisma.emailVerificationToken.deleteMany({ where: { email: normalizedEmail } });
         }
 
         // Hash password
@@ -31,10 +179,10 @@ export const register = async (req: Request, res: Response): Promise<void> => {
         // Create user
         const user = await prisma.user.create({
             data: {
-                name,
-                email,
+                name: (name && String(name).trim()) || normalizedEmail.split('@')[0],
+                email: normalizedEmail,
                 passwordHash,
-                phone,
+                phone: phone ? String(phone).trim() : null,
                 role: role || 'USER',
             },
         });

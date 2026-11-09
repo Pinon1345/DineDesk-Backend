@@ -31,6 +31,156 @@ export interface SignInEmailParams {
   userAgent?: string;
 }
 
+export interface VerificationCodeEmailParams {
+  toEmail: string;
+  code: string;
+  name?: string;
+  userName?: string;
+}
+
+// =========================================================================
+// 1. EMAIL VERIFICATION OTP (INBOX OPTIMIZED)
+// =========================================================================
+export const sendVerificationCodeEmail = async ({
+  toEmail,
+  code,
+  name,
+  userName,
+}: VerificationCodeEmailParams) => {
+  const senderEmail = env.SMTP_USER || process.env.SMTP_USER || "pinonfurkan1@gmail.com";
+  const resolvedName = (name || userName || "Connoisseur").trim();
+  const firstName = resolvedName.split(" ")[0] || "Connoisseur";
+  const frontendUrl = (env.FRONTEND_URL || process.env.FRONTEND_URL || "https://dine-desk-one.vercel.app").replace(/\/$/, "");
+  const logoUrl = `${frontendUrl}/icon.png`;
+
+  const htmlTemplate = `
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Your DineDesk Verification Code</title>
+  <style type="text/css">
+    @media only screen and (max-width: 580px) {
+      .responsive-table { width: 100% !important; }
+      .mobile-padding { padding: 24px 18px !important; }
+      .mobile-code { font-size: 34px !important; letter-spacing: 8px !important; }
+    }
+  </style>
+</head>
+<body style="margin: 0; padding: 0; background-color: #f3f4f1; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #1b3b2b;">
+  <table width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#f3f4f1" style="background-color: #f3f4f1; padding: 25px 8px 50px 8px;">
+    <tr>
+      <td align="center">
+        <table class="responsive-table" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#ffffff" style="max-width: 600px; background-color: #ffffff; border-radius: 28px; overflow: hidden; border: 1px solid rgba(27, 59, 43, 0.1); box-shadow: 0 16px 45px rgba(27, 59, 43, 0.08);">
+          <tr>
+            <td bgcolor="#1b3b2b" style="background: linear-gradient(90deg, #1b3b2b 0%, #2b5540 50%, #c05621 100%); height: 6px; line-height: 6px; font-size: 6px;">&nbsp;</td>
+          </tr>
+          <tr>
+            <td bgcolor="#1b3b2b" style="background-color: #1b3b2b; padding: 40px 20px 32px 20px; text-align: center;">
+              <table cellpadding="0" cellspacing="0" border="0" align="center" style="margin: 0 auto;">
+                <tr>
+                  <td align="center" style="padding-bottom: 14px;">
+                    <img src="${logoUrl}" alt="DineDesk" width="56" height="56" style="display: block; width: 56px; height: 56px; border-radius: 14px; border: 0;" />
+                  </td>
+                </tr>
+                <tr>
+                  <td align="center">
+                    <span style="font-family: Georgia, serif; font-size: 28px; font-weight: 900; letter-spacing: 1.5px; color: #ffffff; display: block;">
+                      <font color="#ffffff">DineDesk</font>
+                    </span>
+                    <span style="font-size: 10px; text-transform: uppercase; letter-spacing: 3px; color: #e5b869; margin-top: 6px; font-weight: 700; display: block;">
+                      <font color="#e5b869">Identity &amp; Account Authentication</font>
+                    </span>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td class="mobile-padding" style="padding: 38px 40px 32px 40px; background-color: #ffffff; text-align: center;">
+              <table cellpadding="0" cellspacing="0" border="0" align="center" style="margin: 0 auto 16px auto;">
+                <tr>
+                  <td bgcolor="#eef5f1" style="background-color: #eef5f1; border: 1px solid rgba(27, 59, 43, 0.2); padding: 5px 14px; border-radius: 30px;">
+                    <font color="#1b3b2b" style="font-size: 10px; font-weight: 800; letter-spacing: 1.4px; text-transform: uppercase;">
+                      EMAIL VERIFICATION PROTOCOL
+                    </font>
+                  </td>
+                </tr>
+              </table>
+              <h1 style="margin: 0 0 14px 0; font-family: Georgia, serif; font-size: 24px; color: #1b3b2b; font-weight: 800;">
+                Verify your email, ${firstName}
+              </h1>
+              <p style="margin: 0 auto 26px auto; font-size: 14px; line-height: 1.6; color: rgba(27, 59, 43, 0.85); max-width: 440px;">
+                Use the single-use 6-digit cryptographic verification code below to authorize your email address and continue setting your password.
+              </p>
+
+              <!-- Luxury Code Display -->
+              <table cellpadding="0" cellspacing="0" border="0" align="center" bgcolor="#142c1f" style="margin: 0 auto 28px auto; background-color: #142c1f; border-radius: 20px; border: 1px solid #c99e55; box-shadow: 0 8px 24px rgba(20, 44, 31, 0.25);">
+                <tr>
+                  <td style="padding: 24px 48px; text-align: center;">
+                    <span class="mobile-code" style="font-family: 'Courier New', Courier, monospace; font-size: 40px; font-weight: 900; letter-spacing: 11px; color: #e5b869; display: block; text-shadow: 0 2px 8px rgba(0,0,0,0.4);">
+                      ${code}
+                    </span>
+                    <span style="font-size: 9px; text-transform: uppercase; letter-spacing: 2px; color: #c2d6cc; display: block; margin-top: 8px; font-weight: 700;">
+                      VALID FOR 10 MINUTES
+                    </span>
+                  </td>
+                </tr>
+              </table>
+
+              <table width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#f8f9f6" style="background-color: #f8f9f6; border-radius: 16px; border: 1px solid rgba(27, 59, 43, 0.08); padding: 16px; margin: 0 auto; max-width: 480px; text-align: left;">
+                <tr>
+                  <td width="24" valign="top" style="font-size: 15px; color: #c05621; line-height: 1;">✦</td>
+                  <td style="font-size: 12px; color: rgba(27, 59, 43, 0.8); line-height: 1.5;">
+                    Never disclose this security code to third parties. DineDesk personnel will never request your verification PIN outside the official registration portal.
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td bgcolor="#f8f9f6" style="background-color: #f8f9f6; border-top: 1px solid rgba(27, 59, 43, 0.08); padding: 26px 24px; text-align: center;">
+              <p style="margin: 0 0 6px 0; font-size: 11px; font-weight: 700; color: #1b3b2b;">
+                DineDesk Hospitality Group &bull; Member Registration Security
+              </p>
+              <p style="margin: 0; font-size: 10px; color: rgba(27, 59, 43, 0.45);">
+                Dispatched to <a href="mailto:${toEmail}" style="color: rgba(27, 59, 43, 0.6); text-decoration: underline;">${toEmail}</a>.<br />
+                &copy; ${new Date().getFullYear()} DineDesk Inc. All rights reserved.
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+  `;
+
+  try {
+    const info = await transporter.sendMail({
+      from: `"DineDesk Concierge" <${senderEmail}>`,
+      to: toEmail,
+      subject: `${code} is your DineDesk Verification Code`,
+      html: htmlTemplate,
+      text: `Hello ${firstName},\n\nYour DineDesk verification code is: ${code}\n\nThis single-use code is valid for 10 minutes. Please enter it in the registration form to verify your email.\n\n© ${new Date().getFullYear()} DineDesk Hospitality Group`,
+      headers: {
+        "X-Entity-Ref-ID": `verify-${Date.now()}-${Math.random().toString(36).substring(7)}`,
+      },
+    });
+
+    console.log(`✅ [Gmail SMTP] Verification code sent to ${toEmail} (ID: ${info.messageId})`);
+    return info;
+  } catch (error: any) {
+    console.error("❌ [Gmail SMTP] Failed to dispatch verification code email:", error?.message || error);
+    throw error;
+  }
+};
+
+// =========================================================================
+// 2. WELCOME / ONBOARDING EMAIL (INBOX OPTIMIZED)
+// =========================================================================
 export const sendWelcomeEmail = async ({
   toEmail,
   userName,
@@ -44,7 +194,6 @@ export const sendWelcomeEmail = async ({
   const frontendUrl = (env.FRONTEND_URL || process.env.FRONTEND_URL || "https://dine-desk-one.vercel.app").replace(/\/$/, "");
   const logoUrl = `${frontendUrl}/icon.png`;
 
-  // Generate unique luxury member card serial based on timestamp & email
   const patronId = `DD-${Buffer.from(toEmail).toString("hex").slice(0, 6).toUpperCase()}-${new Date().getFullYear()}`;
   const issuedDate = new Date().toLocaleDateString("en-US", {
     month: "short",
@@ -58,31 +207,8 @@ export const sendWelcomeEmail = async ({
 <head>
   <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="color-scheme" content="light dark" />
-  <meta name="supported-color-schemes" content="light dark" />
   <title>Welcome to DineDesk</title>
   <style type="text/css">
-    :root {
-      color-scheme: light dark;
-      supported-color-schemes: light dark;
-    }
-    @keyframes cardShimmer {
-      0% { box-shadow: 0 10px 30px rgba(0,0,0,0.3), inset 0 0 0 1px rgba(201, 158, 85, 0.4); }
-      50% { box-shadow: 0 14px 40px rgba(229, 184, 105, 0.25), inset 0 0 0 1px rgba(229, 184, 105, 0.8); }
-      100% { box-shadow: 0 10px 30px rgba(0,0,0,0.3), inset 0 0 0 1px rgba(201, 158, 85, 0.4); }
-    }
-    @keyframes shimmerGold {
-      0% { opacity: 0.85; }
-      50% { opacity: 1; transform: scale(1.02); }
-      100% { opacity: 0.85; }
-    }
-    .animated-card { animation: cardShimmer 5s ease-in-out infinite; }
-    .animated-badge { animation: shimmerGold 3.5s ease-in-out infinite; display: inline-block; }
-    .cta-btn:hover {
-      background-color: #244b37 !important;
-      transform: translateY(-2px);
-      box-shadow: 0 12px 28px rgba(27, 59, 43, 0.35) !important;
-    }
     @media only screen and (max-width: 580px) {
       .responsive-table { width: 100% !important; }
       .mobile-padding { padding: 24px 18px !important; }
@@ -91,14 +217,6 @@ export const sendWelcomeEmail = async ({
       .mobile-badge-container { display: block !important; width: 100% !important; text-align: left !important; margin-top: 14px !important; }
       .mobile-bottom-col { display: block !important; width: 100% !important; text-align: left !important; }
       .mobile-bottom-col-right { display: block !important; width: 100% !important; text-align: left !important; margin-top: 12px !important; }
-      .mobile-header-logo { width: 54px !important; height: 54px !important; }
-      .mobile-brand-title { font-size: 26px !important; }
-    }
-    @media (prefers-color-scheme: dark) {
-      .patron-card-container { background-color: #142c1f !important; background: #142c1f !important; }
-      .patron-text-white { color: #ffffff !important; -webkit-text-fill-color: #ffffff !important; }
-      .patron-text-gold { color: #e5b869 !important; -webkit-text-fill-color: #e5b869 !important; }
-      .patron-text-muted { color: #c2d6cc !important; -webkit-text-fill-color: #c2d6cc !important; }
     }
   </style>
 </head>
@@ -111,23 +229,16 @@ export const sendWelcomeEmail = async ({
             <td bgcolor="#1b3b2b" style="background: linear-gradient(90deg, #1b3b2b 0%, #2b5540 50%, #c05621 100%); height: 6px; line-height: 6px; font-size: 6px;">&nbsp;</td>
           </tr>
           <tr>
-            <td bgcolor="#1b3b2b" style="background-color: #1b3b2b; padding: 46px 20px 38px 20px; text-align: center;">
+            <td bgcolor="#1b3b2b" style="background-color: #1b3b2b; padding: 40px 20px 32px 20px; text-align: center;">
               <table cellpadding="0" cellspacing="0" border="0" align="center" style="margin: 0 auto;">
                 <tr>
-                  <td align="center" style="padding-bottom: 16px;">
-                    <img 
-                      class="mobile-header-logo"
-                      src="${logoUrl}" 
-                      alt="DineDesk Logo" 
-                      width="64" 
-                      height="64" 
-                      style="display: block; width: 64px; height: 64px; border-radius: 16px; border: 0; outline: none; object-fit: contain; box-shadow: 0 8px 24px rgba(0,0,0,0.3);" 
-                    />
+                  <td align="center" style="padding-bottom: 14px;">
+                    <img src="${logoUrl}" alt="DineDesk" width="56" height="56" style="display: block; width: 56px; height: 56px; border-radius: 14px; border: 0;" />
                   </td>
                 </tr>
                 <tr>
                   <td align="center">
-                    <span class="mobile-brand-title" style="font-family: Georgia, 'Times New Roman', serif; font-size: 32px; font-weight: 900; letter-spacing: 2px; color: #ffffff; text-decoration: none; line-height: 1.1; display: block;">
+                    <span style="font-family: Georgia, 'Times New Roman', serif; font-size: 30px; font-weight: 900; letter-spacing: 2px; color: #ffffff; text-decoration: none; line-height: 1.1; display: block;">
                       <font color="#ffffff">DineDesk</font>
                     </span>
                     <span style="font-family: -apple-system, BlinkMacSystemFont, sans-serif; font-size: 11px; text-transform: uppercase; letter-spacing: 3.5px; color: #e5b869; margin-top: 8px; font-weight: 700; display: block;">
@@ -159,31 +270,29 @@ export const sendWelcomeEmail = async ({
           </tr>
           <tr>
             <td style="padding: 0 24px 30px 24px;">
-              <table class="patron-card-container animated-card" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#142c1f" style="background-color: #142c1f !important; border-radius: 20px; border: 1px solid #c99e55; box-shadow: 0 14px 32px rgba(0,0,0,0.35); overflow: hidden;">
+              <table width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#142c1f" style="background-color: #142c1f !important; border-radius: 20px; border: 1px solid #c99e55; box-shadow: 0 14px 32px rgba(0,0,0,0.25); overflow: hidden;">
                 <tr>
                   <td class="card-padding" bgcolor="#142c1f" style="padding: 28px; background-color: #142c1f !important;">
                     <table width="100%" cellpadding="0" cellspacing="0" border="0">
                       <tr>
                         <td class="mobile-stack" align="left" valign="top">
-                          <span class="patron-text-gold" style="font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: #e5b869; font-weight: 800; display: block; -webkit-text-fill-color: #e5b869 !important;">
+                          <span style="font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: #e5b869; font-weight: 800; display: block;">
                             <font color="#e5b869">PATRON CREDENTIALS</font>
                           </span>
-                          <span class="patron-text-white" style="font-family: Georgia, serif; font-size: 22px; color: #ffffff !important; font-weight: 800; margin-top: 4px; display: block; -webkit-text-fill-color: #ffffff !important; text-shadow: 0 1px 3px rgba(0,0,0,0.85); word-break: break-word;">
+                          <span style="font-family: Georgia, serif; font-size: 22px; color: #ffffff !important; font-weight: 800; margin-top: 4px; display: block; text-shadow: 0 1px 3px rgba(0,0,0,0.85); word-break: break-word;">
                             <font color="#ffffff">${fullName}</font>
                           </span>
                         </td>
                         <td class="mobile-badge-container" align="right" valign="top">
-                          <div class="animated-badge">
-                            <table cellpadding="0" cellspacing="0" border="0" bgcolor="#213d2f" style="border: 1px solid #e5b869; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.25);">
-                              <tr>
-                                <td style="padding: 6px 14px;">
-                                  <span class="patron-text-gold" style="font-size: 10px; font-weight: 800; letter-spacing: 1.4px; color: #e5b869; text-transform: uppercase; white-space: nowrap; -webkit-text-fill-color: #e5b869 !important;">
-                                    <font color="#e5b869">✦ FOUNDING MEMBER</font>
-                                  </span>
-                                </td>
-                              </tr>
-                            </table>
-                          </div>
+                          <table cellpadding="0" cellspacing="0" border="0" bgcolor="#213d2f" style="border: 1px solid #e5b869; border-radius: 8px;">
+                            <tr>
+                              <td style="padding: 6px 14px;">
+                                <span style="font-size: 10px; font-weight: 800; letter-spacing: 1.4px; color: #e5b869; text-transform: uppercase; white-space: nowrap;">
+                                  <font color="#e5b869">✦ FOUNDING MEMBER</font>
+                                </span>
+                              </td>
+                            </tr>
+                          </table>
                         </td>
                       </tr>
                     </table>
@@ -195,18 +304,18 @@ export const sendWelcomeEmail = async ({
                     <table width="100%" cellpadding="0" cellspacing="0" border="0">
                       <tr>
                         <td class="mobile-bottom-col" align="left" valign="bottom">
-                          <span class="patron-text-muted" style="font-size: 9px; text-transform: uppercase; letter-spacing: 1.6px; color: #c2d6cc; display: block; font-weight: 700; -webkit-text-fill-color: #c2d6cc !important;">
+                          <span style="font-size: 9px; text-transform: uppercase; letter-spacing: 1.6px; color: #c2d6cc; display: block; font-weight: 700;">
                             <font color="#c2d6cc">MEMBER SERIAL</font>
                           </span>
-                          <span class="patron-text-white" style="font-family: 'Courier New', Courier, monospace; font-size: 13px; font-weight: 800; color: #ffffff !important; letter-spacing: 1.2px; margin-top: 4px; display: block; -webkit-text-fill-color: #ffffff !important; text-shadow: 0 1px 3px rgba(0,0,0,0.85);">
+                          <span style="font-family: 'Courier New', Courier, monospace; font-size: 13px; font-weight: 800; color: #ffffff !important; letter-spacing: 1.2px; margin-top: 4px; display: block; text-shadow: 0 1px 3px rgba(0,0,0,0.85);">
                             <font color="#ffffff">${patronId}</font>
                           </span>
                         </td>
                         <td class="mobile-bottom-col-right" align="right" valign="bottom">
-                          <span class="patron-text-muted" style="font-size: 9px; text-transform: uppercase; letter-spacing: 1.6px; color: #c2d6cc; display: block; font-weight: 700; -webkit-text-fill-color: #c2d6cc !important;">
+                          <span style="font-size: 9px; text-transform: uppercase; letter-spacing: 1.6px; color: #c2d6cc; display: block; font-weight: 700;">
                             <font color="#c2d6cc">AUTHORIZED DATE</font>
                           </span>
-                          <span class="patron-text-white" style="font-family: -apple-system, BlinkMacSystemFont, sans-serif; font-size: 13px; font-weight: 700; color: #ffffff !important; margin-top: 4px; display: block; -webkit-text-fill-color: #ffffff !important; text-shadow: 0 1px 3px rgba(0,0,0,0.85);">
+                          <span style="font-family: -apple-system, BlinkMacSystemFont, sans-serif; font-size: 13px; font-weight: 700; color: #ffffff !important; margin-top: 4px; display: block; text-shadow: 0 1px 3px rgba(0,0,0,0.85);">
                             <font color="#ffffff">${issuedDate}</font>
                           </span>
                         </td>
@@ -271,7 +380,7 @@ export const sendWelcomeEmail = async ({
               <table cellpadding="0" cellspacing="0" border="0">
                 <tr>
                   <td align="center" bgcolor="#1b3b2b" style="background-color: #1b3b2b; border-radius: 14px; box-shadow: 0 8px 22px rgba(27, 59, 43, 0.28);">
-                    <a href="${frontendUrl}/dashboard/customer" target="_blank" class="cta-btn" style="display: inline-block; padding: 16px 42px; font-size: 13px; font-weight: 800; color: #ffffff !important; text-decoration: none; text-transform: uppercase; letter-spacing: 1.5px; border-radius: 14px; transition: all 0.3s ease;">
+                    <a href="${frontendUrl}/dashboard/customer" target="_blank" style="display: inline-block; padding: 16px 42px; font-size: 13px; font-weight: 800; color: #ffffff !important; text-decoration: none; text-transform: uppercase; letter-spacing: 1.5px; border-radius: 14px;">
                       <font color="#ffffff">Enter Patron Portal &rarr;</font>
                     </a>
                   </td>
@@ -308,18 +417,24 @@ export const sendWelcomeEmail = async ({
     const info = await transporter.sendMail({
       from: `"DineDesk Concierge" <${senderEmail}>`,
       to: toEmail,
-      subject: `Welcome to the Family, ${firstName} ✨ Your DineDesk Patron Pass is Ready`,
+      subject: `Welcome to the Family, ${firstName} - Your DineDesk Patron Pass is Ready`,
       html: htmlTemplate,
       text: `Hello ${firstName},\n\nWelcome to DineDesk! Your patron credentials have been authorized.\nPatron ID: ${patronId}\nMembership Tier: Founding Member\n\nEnter your patron portal: ${frontendUrl}/dashboard/customer\n\n© ${new Date().getFullYear()} DineDesk Hospitality Group`,
+      headers: {
+        "X-Entity-Ref-ID": `welcome-${Date.now()}-${Math.random().toString(36).substring(7)}`,
+      },
     });
 
-    console.log(`✅ [Gmail SMTP] Premium welcome email sent to ${toEmail} (ID: ${info.messageId})`);
+    console.log(`✅ [Gmail SMTP] Welcome email sent to ${toEmail} (ID: ${info.messageId})`);
     return info;
   } catch (error: any) {
     console.error("❌ [Gmail SMTP] Failed to dispatch welcome email:", error?.message || error);
   }
 };
 
+// =========================================================================
+// 3. SIGN-IN SECURITY NOTICE (FIXED: SANITIZED IP & ANTI-SPAM HEADERS)
+// =========================================================================
 export const sendSignInEmail = async ({
   toEmail,
   userName,
@@ -328,7 +443,7 @@ export const sendSignInEmail = async ({
   loginDate: customDate,
   loginTime: customTime,
   device: customDevice,
-  ipAddress = "127.0.0.1",
+  ipAddress = "Authorized Secure Device",
   userAgent = "Web Browser",
 }: SignInEmailParams) => {
   const senderEmail = env.SMTP_USER || process.env.SMTP_USER || "pinonfurkan1@gmail.com";
@@ -360,15 +475,18 @@ export const sendSignInEmail = async ({
           : "Web Session"
   );
 
+  // Filter out localhost / loopback addresses that trigger spam classifiers
+  const displayIp = (!ipAddress || ipAddress === "127.0.0.1" || ipAddress === "::1" || ipAddress === "localhost")
+    ? "Direct Web Session"
+    : ipAddress;
+
   const htmlTemplate = `
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
 <html xmlns="http://www.w3.org/1999/xhtml">
 <head>
   <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="color-scheme" content="light dark" />
-  <meta name="supported-color-schemes" content="light dark" />
-  <title>New Sign-In Detected - DineDesk</title>
+  <title>DineDesk Account Notice</title>
   <style type="text/css">
     @media only screen and (max-width: 580px) {
       .responsive-table { width: 100% !important; }
@@ -435,7 +553,7 @@ export const sendSignInEmail = async ({
                 </tr>
                 <tr>
                   <td style="padding: 6px 0; font-size: 13px; color: rgba(27, 59, 43, 0.7);">
-                    <strong>IP Address:</strong> <span style="color: #1b3b2b; font-family: monospace;">${ipAddress}</span>
+                    <strong>Network Session:</strong> <span style="color: #1b3b2b; font-family: monospace;">${displayIp}</span>
                   </td>
                 </tr>
               </table>
@@ -449,7 +567,7 @@ export const sendSignInEmail = async ({
                 </tr>
               </table>
               <p style="margin: 28px 0 0 0; font-size: 12px; line-height: 1.5; color: rgba(27, 59, 43, 0.55); text-align: center;">
-                If this wasn't you, please secure your account immediately by resetting your password.
+                If you initiated this sign-in, no further action is necessary.
               </p>
             </td>
           </tr>
@@ -475,14 +593,19 @@ export const sendSignInEmail = async ({
     const info = await transporter.sendMail({
       from: `"DineDesk Concierge" <${senderEmail}>`,
       to: toEmail,
-      subject: `New Sign-In to DineDesk ✨ Welcome Back, ${firstName}`,
+      subject: `DineDesk Security Notice: Sign-in for ${firstName}`,
       html: htmlTemplate,
-      text: `Hello ${firstName},\n\nA new sign-in was detected on your DineDesk account on ${loginDate} at ${loginTime}.\nDevice: ${device}\n\nAccess dashboard: ${frontendUrl}/dashboard/customer`,
+      text: `Hello ${firstName},\n\nA successful sign-in was confirmed on your DineDesk account on ${loginDate} at ${loginTime}.\nDevice: ${device}\n\nAccess dashboard: ${frontendUrl}/dashboard/customer`,
+      headers: {
+        "X-Entity-Ref-ID": `signin-${Date.now()}-${Math.random().toString(36).substring(7)}`,
+        "Precedence": "bulk",
+        "Auto-Submitted": "auto-generated",
+      },
     });
 
     console.log(`✅ [Gmail SMTP] Sign-in notice sent to ${toEmail} (ID: ${info.messageId})`);
     return info;
   } catch (error: any) {
-    console.error("❌ [Gmail SMTP] Sign-in email dispatch error:", error?.message || error);
+    console.error("❌ [Gmail SMTP] Failed to dispatch sign-in email:", error?.message || error);
   }
 };

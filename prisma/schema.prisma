@@ -117,6 +117,16 @@ model User {
   transactions       Transaction[]
 }
 
+model EmailVerificationToken {
+  id        String   @id @default(cuid())
+  email     String
+  code      String   // 6-digit OTP code
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([email])
+}
+
 model PasswordResetToken {
   id        String    @id @default(cuid())
   userId    String
@@ -298,11 +308,11 @@ model Order {
 }
 
 model OrderItem {
-  id         String   @id @default(cuid())
+  id         String    @id @default(cuid())
   orderId    String
   menuItemId String?
-  name       String   // copy of name at order time
-  price      Decimal  @db.Decimal(10, 2) // copy of price at order time
+  name       String    // copy of name at order time
+  price      Decimal   @db.Decimal(10, 2) // copy of price at order time
   quantity   Int
 
   order    Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
@@ -359,20 +369,20 @@ model Reservation {
 }
 
 model RestaurantTable {
-  id           String       @id @default(cuid())
-  tableNumber  String       // e.g. "Table 1", "Table 2"
-  label        String       // e.g. "Table 1"
-  shortName    String       // e.g. "T-1"
-  section      String       // e.g. "Main Dining Hall", "Family Hall", "Courtyard Terrace"
-  capacity     Int          @default(4)
-  shape        String       @default("rectangle") // "rectangle" | "circle"
-  status       String       @default("AVAILABLE") // "AVAILABLE" | "OCCUPIED" | "RESERVED"
+  id           String        @id @default(cuid())
+  tableNumber  String        // e.g. "Table 1", "Table 2"
+  label        String        // e.g. "Table 1"
+  shortName    String        // e.g. "T-1"
+  section      String        // e.g. "Main Dining Hall", "Family Hall", "Courtyard Terrace"
+  capacity     Int           @default(4)
+  shape        String        @default("rectangle") // "rectangle" | "circle"
+  status       String        @default("AVAILABLE") // "AVAILABLE" | "OCCUPIED" | "RESERVED"
   restaurantId String
-  restaurant   Restaurant   @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  restaurant   Restaurant    @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
   reservations Reservation[]
 
-  createdAt    DateTime     @default(now())
-  updatedAt    DateTime     @updatedAt
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
 
   @@unique([restaurantId, tableNumber])
   @@index([restaurantId, section])
@@ -403,9 +413,9 @@ model Favorite {
   createdAt    DateTime    @default(now())
   updatedAt    DateTime    @updatedAt
 
-  user       User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  restaurant Restaurant?  @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
-  menuItem   MenuItem?    @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  restaurant Restaurant? @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  menuItem   MenuItem?   @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
 
   @@unique([userId, restaurantId])
   @@unique([userId, menuItemId])

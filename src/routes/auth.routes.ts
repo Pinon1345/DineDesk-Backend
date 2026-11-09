@@ -3,11 +3,24 @@ import { Router, Request, Response } from 'express';
 import { validate } from '../middlewares/validate.js';
 import { authenticate } from '../middlewares/authenticate.js';
 import { loginSchema, registerSchema } from '../validations/auth.validation.js';
-import { getMe, googleLogin, login, logout, register } from '../controllers/auth.controller.js';
+import {
+    getMe,
+    googleLogin,
+    login,
+    logout,
+    register,
+    sendVerificationCode,
+    verifyCode
+} from '../controllers/auth.controller.js';
 import { sendSignInEmail, sendWelcomeEmail } from '../services/email.service.js';
 
 const router = Router();
 
+// Email verification endpoints for sign-up
+router.post('/send-verification-code', sendVerificationCode);
+router.post('/verify-code', verifyCode);
+
+// Authentication endpoints
 router.post('/register', validate(registerSchema), register);
 router.post('/login', validate(loginSchema), login);
 router.post('/google', googleLogin);
