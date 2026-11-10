@@ -73,16 +73,21 @@ export const getAllMenus = async (req: Request, res: Response): Promise<void> =>
     }
 };
 
-// Get top 6 featured menus
+// Get top 6 latest menu items in descending order (newest created dishes first)
 export const getFeaturedMenus = async (req: Request, res: Response): Promise<void> => {
     try {
-        const featuredMenus = await prisma.menuItem.findMany({
-            where: { featured: true, isPublished: true, isAvailable: true },
+        const latestMenus = await prisma.menuItem.findMany({
+            where: {
+                isPublished: true,
+                isAvailable: true,
+            },
             take: 6,
-            orderBy: { createdAt: 'desc' },
+            orderBy: {
+                createdAt: 'desc',
+            },
         });
 
-        res.status(200).json({ success: true, data: featuredMenus });
+        res.status(200).json({ success: true, data: latestMenus });
     } catch (error: any) {
         console.error('Get featured menus error:', error);
         res.status(500).json({ success: false, message: error.message || 'Internal server error' });
@@ -130,7 +135,7 @@ export const getVendorMenuItems = async (req: Request, res: Response): Promise<v
         if (restaurant) {
             menuItems = await prisma.menuItem.findMany({
                 where: { restaurantId: restaurant.id },
-                orderBy: { createdAt: 'desc' }, // Displays newly created dishes first
+                orderBy: { createdAt: 'desc' },
             });
         }
 
