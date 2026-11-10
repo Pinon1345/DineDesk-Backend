@@ -10,7 +10,9 @@ import {
     logout,
     register,
     sendVerificationCode,
-    verifyCode
+    verifyCode,
+    forgotPassword,
+    resetPassword,
 } from '../controllers/auth.controller.js';
 import { sendSignInEmail, sendWelcomeEmail } from '../services/email.service.js';
 
@@ -19,6 +21,10 @@ const router = Router();
 // Email verification endpoints for sign-up
 router.post('/send-verification-code', sendVerificationCode);
 router.post('/verify-code', verifyCode);
+
+// Password recovery endpoints
+router.post('/forgot-password', forgotPassword);
+router.post('/reset-password', resetPassword);
 
 // Authentication endpoints
 router.post('/register', validate(registerSchema), register);

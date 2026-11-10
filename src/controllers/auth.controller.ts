@@ -443,3 +443,177 @@ export const googleLogin = async (req: Request, res: Response): Promise<void> =>
         res.status(500).json({ success: false, message: 'Internal server error during Google login' });
     }
 };
+
+// =========================================================================
+// FORGOT & RESET PASSWORD CONTROLLERS
+// =========================================================================
+
+// 1. Dispatch 6-digit OTP to existing user's email
+export const forgotPassword = async (req: Request, res: Response): Promise<void> => {
+    try {
+        const { email } = req.body;
+
+        if (!email || typeof email !== 'string' || !email.includes('@')) {
+            res.status(400).json({ success: false, message: 'A valid email address is required.' });
+            return;
+        }
+
+        const normalizedEmail = email.trim().toLowerCase();
+
+        // Check if user exists in database
+        const user = await prisma.user.findUnique({
+            where: { email: normalizedEmail },
+        });
+
+        if (!user) {
+            res.status(404).json({
+                success: false,
+                message: 'No DineDesk account was found with this email address.',
+            });
+            return;
+        }
+
+        if (user.isBanned) {
+            res.status(403).json({
+                success: false,
+                message: 'This account has been suspended. Please contact support.',
+            });
+            return;
+        }
+
+        // Generate cryptographically random 6-digit code
+        const code = Math.floor(100000 + Math.random() * 900000).toString();
+        const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes validity
+
+        // Clean up any stale tokens for this email
+        await prisma.emailVerificationToken.deleteMany({
+            where: { email: normalizedEmail },
+        });
+
+        // Store reset token
+        await prisma.emailVerificationToken.create({
+            data: {
+                email: normalizedEmail,
+                code,
+                expiresAt,
+            },
+        });
+
+        // Dispatch OTP via your existing email service
+        await sendVerificationCodeEmail({
+            toEmail: normalizedEmail,
+            code,
+            name: user.name || 'Diner',
+        });
+
+        res.status(200).json({
+            success: true,
+            message: `Verification code sent to ${normalizedEmail}`,
+        });
+    } catch (error: any) {
+        console.error('Forgot password error:', error);
+        res.status(500).json({
+            success: false,
+            message: error.message || 'Failed to dispatch recovery code. Please try again.',
+        });
+    }
+};
+
+// 2. Verify code and regenerate password with bcrypt
+export const resetPassword = async (req: Request, res: Response): Promise<void> => {
+    try {
+        const { email, code, newPassword, confirmPassword } = req.body;
+
+        if (!email || !code || !newPassword) {
+            res.status(400).json({
+                success: false,
+                message: 'Email, verification code, and new password are required.',
+            });
+            return;
+        }
+
+        if (newPassword.length < 6) {
+            res.status(400).json({
+                success: false,
+                message: 'New password must be at least 6 characters long.',
+            });
+            return;
+        }
+
+        if (confirmPassword && newPassword !== confirmPassword) {
+            res.status(400).json({
+                success: false,
+                message: 'New password and confirmation password do not match.',
+            });
+            return;
+        }
+
+        const normalizedEmail = email.trim().toLowerCase();
+        const cleanCode = String(code).trim();
+
+        // 1. Verify OTP code from database
+        const tokenRecord = await prisma.emailVerificationToken.findFirst({
+            where: {
+                email: normalizedEmail,
+                code: cleanCode,
+            },
+        });
+
+        if (!tokenRecord) {
+            res.status(400).json({
+                success: false,
+                message: 'Invalid verification code. Please check and try again.',
+            });
+            return;
+        }
+
+        if (new Date() > tokenRecord.expiresAt) {
+            await prisma.emailVerificationToken.deleteMany({
+                where: { email: normalizedEmail },
+            });
+            res.status(400).json({
+                success: false,
+                message: 'Verification code has expired. Please request a new one.',
+            });
+            return;
+        }
+
+        // 2. Delete used verification token
+        await prisma.emailVerificationToken.deleteMany({
+            where: { email: normalizedEmail },
+        });
+
+        // 3. Find user
+        const user = await prisma.user.findUnique({
+            where: { email: normalizedEmail },
+        });
+
+        if (!user) {
+            res.status(404).json({
+                success: false,
+                message: 'User account not found.',
+            });
+            return;
+        }
+
+        // 4. Hash new password and update in PostgreSQL
+        const saltRounds = 10;
+        const passwordHash = await bcrypt.hash(newPassword, saltRounds);
+
+        await prisma.user.update({
+            where: { email: normalizedEmail },
+            data: { passwordHash },
+        });
+
+        res.status(200).json({
+            success: true,
+            message: 'Password reset successfully! You can now sign in with your new password.',
+        });
+    } catch (error: any) {
+        console.error('Reset password error:', error);
+        res.status(500).json({
+            success: false,
+            message: error.message || 'An unexpected error occurred while resetting password.',
+        });
+    }
+};
