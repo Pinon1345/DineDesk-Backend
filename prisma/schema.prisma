@@ -291,6 +291,10 @@ model Order {
   deliveryAddress     String?
   deliveryLat         Float?
   deliveryLng         Float?
+  deliveryDetails     Json?
+  deliveryInstructions String?
+  recipientName       String?
+  recipientPhone      String?
   estimatedDeliveryAt DateTime?
   stripeSessionId     String?       @unique
   createdAt           DateTime      @default(now())
