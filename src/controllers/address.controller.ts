@@ -56,7 +56,14 @@ export const createAddress = async (req: Request, res: Response) => {
             postalCode,
             deliveryInstructions,
             isDefault,
+            lat,
+            lng,
+            latitude,
+            longitude,
         } = req.body;
+
+        const parsedLat = lat != null && !isNaN(Number(lat)) ? Number(lat) : (latitude != null && !isNaN(Number(latitude)) ? Number(latitude) : null);
+        const parsedLng = lng != null && !isNaN(Number(lng)) ? Number(lng) : (longitude != null && !isNaN(Number(longitude)) ? Number(longitude) : null);
 
         const existingCount = await prisma.address.count({ where: { userId } });
         const shouldBeDefault = Boolean(isDefault) || existingCount === 0;
@@ -71,6 +78,27 @@ export const createAddress = async (req: Request, res: Response) => {
         const addressLineText = [building, road, apartment, city]
             .filter(Boolean)
             .join(", ") || req.body.addressLine || req.body.address || "Address";
+
+        // Prevent rapid double-click or network retry duplicate insertions
+        const recentDuplicate = await prisma.address.findFirst({
+            where: {
+                userId,
+                label: label || "Home",
+                addressLine: addressLineText,
+                createdAt: {
+                    gte: new Date(Date.now() - 15 * 1000), // Within last 15 seconds
+                },
+            },
+        });
+
+        if (recentDuplicate) {
+            return res.status(200).json({
+                success: true,
+                message: "Address saved successfully",
+                address: recentDuplicate,
+                data: recentDuplicate,
+            });
+        }
 
         let newAddress: any;
         try {
@@ -88,6 +116,8 @@ export const createAddress = async (req: Request, res: Response) => {
                     postalCode: postalCode || null,
                     deliveryInstructions: deliveryInstructions || null,
                     addressLine: addressLineText,
+                    lat: parsedLat,
+                    lng: parsedLng,
                     isDefault: shouldBeDefault,
                 },
             });
@@ -169,7 +199,14 @@ export const updateAddress = async (req: Request, res: Response) => {
             postalCode,
             deliveryInstructions,
             isDefault,
+            lat,
+            lng,
+            latitude,
+            longitude,
         } = req.body;
+
+        const parsedLat = lat != null && !isNaN(Number(lat)) ? Number(lat) : (latitude != null && !isNaN(Number(latitude)) ? Number(latitude) : null);
+        const parsedLng = lng != null && !isNaN(Number(lng)) ? Number(lng) : (longitude != null && !isNaN(Number(longitude)) ? Number(longitude) : null);
 
         if (isDefault) {
             await prisma.address.updateMany({
@@ -197,6 +234,8 @@ export const updateAddress = async (req: Request, res: Response) => {
                     postalCode,
                     deliveryInstructions,
                     ...(addressLineText ? { addressLine: addressLineText } : {}),
+                    ...(parsedLat !== null ? { lat: parsedLat } : {}),
+                    ...(parsedLng !== null ? { lng: parsedLng } : {}),
                     ...(typeof isDefault === "boolean" ? { isDefault } : {}),
                 },
             });

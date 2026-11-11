@@ -120,6 +120,69 @@ export const createOrder = async (req: Request, res: Response): Promise<void> =>
         const total = subtotal - discount + deliveryFee;
         const pointsToAward = 20;
 
+        // Resolve Delivery Address Snapshot for DELIVERY orders
+        let resolvedDeliveryAddress = deliveryAddress;
+        let resolvedDeliveryLat = deliveryLat;
+        let resolvedDeliveryLng = deliveryLng;
+        let resolvedDeliveryDetails = (req.body as any).deliveryDetails || null;
+        let resolvedDeliveryInstructions = (req.body as any).deliveryInstructions || null;
+        let resolvedRecipientName = (req.body as any).recipientName || req.user.name || null;
+        let resolvedRecipientPhone = (req.body as any).recipientPhone || (req.user as any)?.phone || null;
+
+        if (orderType === 'DELIVERY') {
+            if (!resolvedDeliveryDetails || !resolvedDeliveryAddress || resolvedDeliveryAddress.toLowerCase().includes('standard')) {
+                const userAddress = await prisma.address.findFirst({
+                    where: { userId: req.user.id },
+                    orderBy: [{ isDefault: 'desc' }, { createdAt: 'desc' }]
+                });
+
+                if (userAddress) {
+                    const formatted = userAddress.addressLine || [userAddress.building, userAddress.road, userAddress.city].filter(Boolean).join(', ');
+                    resolvedDeliveryAddress = formatted || resolvedDeliveryAddress;
+                    resolvedDeliveryLat = userAddress.lat != null ? Number(userAddress.lat) : resolvedDeliveryLat;
+                    resolvedDeliveryLng = userAddress.lng != null ? Number(userAddress.lng) : resolvedDeliveryLng;
+                    resolvedDeliveryInstructions = userAddress.deliveryInstructions || resolvedDeliveryInstructions;
+                    resolvedRecipientName = userAddress.recipientName || resolvedRecipientName;
+                    resolvedRecipientPhone = userAddress.contactNumber || resolvedRecipientPhone;
+
+                    resolvedDeliveryDetails = {
+                        addressId: userAddress.id,
+                        label: userAddress.label || 'Home',
+                        category: userAddress.category || 'home',
+                        recipientName: resolvedRecipientName,
+                        contactPhone: resolvedRecipientPhone,
+                        building: userAddress.building || '',
+                        road: userAddress.road || '',
+                        apartment: userAddress.apartment || '',
+                        city: userAddress.city || '',
+                        postalCode: userAddress.postalCode || '',
+                        country: 'Bangladesh',
+                        deliveryInstructions: resolvedDeliveryInstructions,
+                        formattedAddress: resolvedDeliveryAddress,
+                        lat: resolvedDeliveryLat,
+                        lng: resolvedDeliveryLng
+                    };
+                } else if (!resolvedDeliveryAddress || resolvedDeliveryAddress.toLowerCase().includes('standard')) {
+                    // Strict Validation: Delivery orders must have a valid delivery address!
+                    res.status(400).json({
+                        success: false,
+                        message: 'Delivery address is required for delivery orders. Please set a delivery drop-off address before placing your order.'
+                    });
+                    return;
+                }
+            } else if (!resolvedDeliveryDetails && resolvedDeliveryAddress) {
+                resolvedDeliveryDetails = {
+                    label: 'Delivery Location',
+                    recipientName: resolvedRecipientName,
+                    contactPhone: resolvedRecipientPhone,
+                    formattedAddress: resolvedDeliveryAddress,
+                    deliveryInstructions: resolvedDeliveryInstructions,
+                    lat: resolvedDeliveryLat,
+                    lng: resolvedDeliveryLng
+                };
+            }
+        }
+
         // 6. STRIPE FLOW: Embedded PaymentIntent created without clearing cart until verified
         if (paymentMethod === 'STRIPE') {
             const draftOrder = await prisma.order.create({
@@ -137,9 +200,13 @@ export const createOrder = async (req: Request, res: Response): Promise<void> =>
                     commissionAmount,
                     pointsEarned: pointsToAward,
                     couponId: appliedCouponId,
-                    deliveryAddress: deliveryAddress || 'Standard Address',
-                    deliveryLat,
-                    deliveryLng,
+                    deliveryAddress: resolvedDeliveryAddress || 'Standard Address',
+                    deliveryLat: resolvedDeliveryLat,
+                    deliveryLng: resolvedDeliveryLng,
+                    deliveryDetails: resolvedDeliveryDetails as any,
+                    deliveryInstructions: resolvedDeliveryInstructions,
+                    recipientName: resolvedRecipientName,
+                    recipientPhone: resolvedRecipientPhone,
                     items: {
                         create: cartItems.map((ci) => ({
                             menuItemId: ci.menuItemId,
@@ -213,9 +280,13 @@ export const createOrder = async (req: Request, res: Response): Promise<void> =>
                     commissionAmount,
                     pointsEarned: pointsToAward,
                     couponId: appliedCouponId,
-                    deliveryAddress: deliveryAddress || 'Standard Address',
-                    deliveryLat,
-                    deliveryLng,
+                    deliveryAddress: resolvedDeliveryAddress || 'Standard Address',
+                    deliveryLat: resolvedDeliveryLat,
+                    deliveryLng: resolvedDeliveryLng,
+                    deliveryDetails: resolvedDeliveryDetails as any,
+                    deliveryInstructions: resolvedDeliveryInstructions,
+                    recipientName: resolvedRecipientName,
+                    recipientPhone: resolvedRecipientPhone,
                     items: {
                         create: cartItems.map((ci) => ({
                             menuItemId: ci.menuItemId,
@@ -732,7 +803,90 @@ export const getVendorOrders = async (req: Request, res: Response): Promise<void
             take: 100,
         });
 
-        res.status(200).json({ success: true, data: orders });
+        // Auto-enrich any delivery orders that have fallback or missing address snapshots
+        const enrichedOrders = await Promise.all(
+            orders.map(async (ord: any) => {
+                if (
+                    ord.orderType === 'DELIVERY' &&
+                    (!ord.deliveryDetails ||
+                        !ord.deliveryAddress ||
+                        ord.deliveryAddress.toLowerCase().includes('standard') ||
+                        ord.deliveryLat == null)
+                ) {
+                    try {
+                        const userAddress = await prisma.address.findFirst({
+                            where: { userId: ord.userId },
+                            orderBy: [{ isDefault: 'desc' }, { createdAt: 'desc' }],
+                        });
+
+                        if (userAddress) {
+                            const formatted =
+                                userAddress.addressLine ||
+                                [userAddress.building, userAddress.road, userAddress.city]
+                                    .filter(Boolean)
+                                    .join(', ');
+                            const lat = userAddress.lat != null ? Number(userAddress.lat) : null;
+                            const lng = userAddress.lng != null ? Number(userAddress.lng) : null;
+                            const instructions =
+                                userAddress.deliveryInstructions ||
+                                ord.deliveryInstructions ||
+                                null;
+                            const recipientName =
+                                userAddress.recipientName || ord.recipientName || ord.user?.name || 'Customer';
+                            const recipientPhone =
+                                userAddress.contactNumber || ord.recipientPhone || ord.user?.phone || null;
+
+                            const snapshot = {
+                                addressId: userAddress.id,
+                                label: userAddress.label || 'Delivery Address',
+                                category: userAddress.category || 'home',
+                                recipientName,
+                                contactPhone: recipientPhone,
+                                building: userAddress.building || '',
+                                road: userAddress.road || '',
+                                apartment: userAddress.apartment || '',
+                                city: userAddress.city || '',
+                                postalCode: userAddress.postalCode || '',
+                                country: '',
+                                deliveryInstructions: instructions,
+                                formattedAddress: formatted,
+                                lat,
+                                lng,
+                            };
+
+                            ord.deliveryAddress = formatted || ord.deliveryAddress;
+                            ord.deliveryLat = lat;
+                            ord.deliveryLng = lng;
+                            ord.deliveryDetails = snapshot;
+                            ord.deliveryInstructions = instructions;
+                            ord.recipientName = recipientName;
+                            ord.recipientPhone = recipientPhone;
+
+                            // Persist back to DB so it becomes permanent
+                            prisma.order
+                                .update({
+                                    where: { id: ord.id },
+                                    data: {
+                                        deliveryAddress: formatted || ord.deliveryAddress,
+                                        deliveryLat: lat,
+                                        deliveryLng: lng,
+                                        deliveryDetails: snapshot as any,
+                                        deliveryInstructions: instructions,
+                                        recipientName,
+                                        recipientPhone,
+                                    },
+                                })
+                                .catch(() => {});
+                        }
+                    } catch (e) {
+                        // ignore enrichment errors
+                    }
+                }
+                return ord;
+            })
+        );
+
+        res.status(200).json({ success: true, data: enrichedOrders });
     } catch (error: any) {
         console.error('Get vendor orders error:', error);
         res.status(500).json({ success: false, message: 'Internal server error' });
